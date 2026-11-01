@@ -67,6 +67,10 @@ The loopback link is the primary signal that the game runs (LinkHello) or ended 
 
 Research (`docs/research/naming-and-trademarks.md`) found no conflicting "Handview" app, project or software trademark. Google Play titles are limited to 30 characters and listings must not claim features that do not work yet, so the Play title is "Handview" and the short description reads "Game View remote for Godot" until the Unity Host phase ships, when it becomes "Game View remote for Godot and Unity" (the brief's subtitle). Third-party names are used only descriptively ("for Godot"), never their logos, and the README carries the trademark notice. The registry searches must be repeated by hand before the first store submission. Status: final.
 
+## D17. First-run editor exits and GDExtension docs
+
+On Godot 4.7.2, a project's very first editor run that exits immediately (`--import`, or `--editor --quit`) segfaults on exit whenever the project contains a GDExtension that registers any class, even one trivial `RefCounted` class with a single method; with no registered class it exits cleanly, and later runs exit cleanly too. Letting the editor run longer (`--quit-after 1500`) also exits cleanly, so it is a race with the first-run documentation generation for extension classes, not Handview code. Normal interactive use is not affected. CI therefore prepares the project with `--editor --quit-after 1500` instead of `--import`. Separately, the plugin now starts its background adb tasks only after the editor's first filesystem scan has settled and never in headless editors (unless the loopback test hook is set), because worker threads running GDScript during the first import's script reload produced script errors. Status: final; revisit if a Godot release fixes the exit race.
+
 ## D11. Versioning
 
 SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish (first production release) at `1.0.0`. CHANGELOG follows Keep a Changelog. Status: final.

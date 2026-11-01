@@ -102,7 +102,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$GODOT_BIN" --headless --path godot-addon --import
+          # Not --import: a first editor run that exits immediately can crash
+          # while it still generates docs for GDExtension classes (DECISIONS
+          # D17). Letting the editor run ~1500 frames avoids that race.
+          "$GODOT_BIN" --headless --path godot-addon --editor --quit-after 1500
 
       - name: Run addon tests
         shell: bash
