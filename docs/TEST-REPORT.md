@@ -44,6 +44,11 @@ Godot 4.7.2 editor with the addon, the dev project's latency scene (1280x720, ca
 | Soak | 30 min | 107,181 | 59.5 | 3533/3533 | 17.4 / 33.5 / 77.9 ms | 0 |
 | 10 Play / Stop cycles | 10 x 4 s | 1,294 | ~60 | 71/74 (3 sent while stopping) | 16.9 / 17.5 / 37.4 ms | 0 |
 | Game kills itself after 6 s | 20 s | 345 | ~60 | 19/20 | 17.0 / 18.2 / 30.8 ms | 0 |
+| MF hardware encoder (`HANDVIEW_ENCODER=mf_hw`), with decoding | 12 s | 599 | ~60 | 32/32 | 15.9 / 30.6 / 32.3 ms | 0 |
+| MF software encoder (`HANDVIEW_ENCODER=mf_sw`), with decoding | 12 s | 604 | ~60 | 32/32 | 16.8 / 26.7 / 33.9 ms | 0 |
+| Portrait project (720x1280 design size), with decoding | 8 s | 303 | ~60 | - | - | 0 |
+
+The portrait run streamed 720x1280 with orientation Portrait. A landscape project shown in a portrait window streams its 16:9 content (for example 720x404), because Godot's "keep" aspect letterboxes the window, not the viewport.
 
 Soak memory (sampled every 30 s): game process 860 to 864 MB private memory, editor about 1.79 GB, both flat; handle counts flat. Latency did not drift (p95 33.5 ms over 30 minutes against 29.7 ms in the 15 s run).
 
