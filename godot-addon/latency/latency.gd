@@ -18,6 +18,10 @@ var _last_touch: Vector2 = Vector2(-1, -1)
 func _ready() -> void:
 	_background.color = COLORS[_color_index]
 	_marker.visible = false
+	# Test hook for crash handling runs: the game kills its own process.
+	if OS.has_environment("HANDVIEW_TEST_KILL_AFTER"):
+		var seconds: float = OS.get_environment("HANDVIEW_TEST_KILL_AFTER").to_float()
+		get_tree().create_timer(seconds).timeout.connect(func() -> void: OS.kill(OS.get_process_id()))
 
 
 func _input(event: InputEvent) -> void:
