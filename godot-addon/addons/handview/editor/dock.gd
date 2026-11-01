@@ -10,7 +10,7 @@ const Controller := preload("session_controller.gd")
 const NO_DEVICES_STATUS: String = "No devices found. Connect a phone with USB debugging enabled."
 
 var _controller: Controller = null
-var _list: ItemList = null
+var _list: VBoxContainer = null
 var _hint: Label = null
 var _status: Label = null
 var _encoder: Label = null
@@ -44,10 +44,9 @@ func _build() -> void:
 	header.add_child(refresh)
 	add_child(header)
 
-	_list = ItemList.new()
-	_list.custom_minimum_size = Vector2(0, 90)
-	_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_list.select_mode = ItemList.SELECT_SINGLE
+	# One entry per device: the name, and its state on the line below.
+	_list = VBoxContainer.new()
+	_list.add_theme_constant_override("separation", 8)
 	add_child(_list)
 
 	_hint = _make_label()
@@ -104,13 +103,25 @@ func _on_uninstall_cancelled() -> void:
 
 
 func _update() -> void:
-	if _controller == null:
+	# A dock built by an older script keeps its old controls until the editor restarts.
+	if _controller == null or not (_list is VBoxContainer):
 		return
-	_list.clear()
+	for child: Node in _list.get_children():
+		_list.remove_child(child)
+		child.queue_free()
 	for device: Dictionary in _controller.devices:
-		var line: String = Logic.device_label(device)
+		var entry: VBoxContainer = VBoxContainer.new()
+		entry.add_theme_constant_override("separation", 0)
+		var title: Label = _make_label()
+		title.text = Logic.device_label(device)
+		entry.add_child(title)
 		var state: String = _controller.device_status(str(device["serial"]))
-		_list.add_item(line if state.is_empty() else "%s\n%s" % [line, state])
+		if not state.is_empty():
+			var detail: Label = _make_label()
+			detail.text = state
+			detail.modulate = Color(1, 1, 1, 0.65)
+			entry.add_child(detail)
+		_list.add_child(entry)
 	_hint.text = "" if _controller.adb_found else Logic.SDK_HINT
 	_hint.visible = not _hint.text.is_empty()
 	if _controller.adb_found and _controller.devices.is_empty():
