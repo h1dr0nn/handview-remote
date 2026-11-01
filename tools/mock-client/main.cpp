@@ -15,7 +15,10 @@ struct CredentialError : std::runtime_error {
 };
 int run_client(int argc,char** argv,std::uint64_t deadline) {
     testtool::Args args(argc,argv,"|--play||--stop-at-end||--decode|");
-    args.check("|--port||--token||--loopback-file||--wait||--duration||--play||--stop-at-end||--tap-every||--screen||--decode||--json|");
+    args.check("|--port||--token||--loopback-file||--wait||--duration||--play||--stop-at-end||--tap-every||--screen||--decode||--json||--cycles||--cycle-seconds|");
+    // --cycles N: Play for --cycle-seconds, Stop, repeat; every cycle must stream frames.
+    const auto cycles=testtool::number(args.get("--cycles","0"),0,10000);
+    const auto cycleSeconds=testtool::number(args.get("--cycle-seconds","4"),1,3600);
     const auto duration=testtool::number(args.get("--duration","10"),1,86400);
     const auto tapEvery=testtool::number(args.get("--tap-every","0"),0,3600000);
     auto [sw,sh]=testtool::size(args.get("--screen","1080x2400"));
@@ -65,6 +68,8 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
     std::vector<double> latencies;
     std::uint32_t touchSeq=0;
     std::uint64_t streamFrames=0;
+    std::uint64_t cyclesDone=0,emptyCycles=0,cycleStart=0;
+    bool stopSent=false;
     auto start=stream::now_us(),lastStats=start,lastPing=start,lastTap=start,lastPeer=start;
     auto maybePlay=[&] {
         if(welcomed&&state==EditorStateValue::Stopped&&args.has("--play")&&!playSent) {
@@ -215,6 +220,26 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
             send(Ping {now});
             lastPing=now;
         }
+        if(cycles&&welcomed) {
+            if(state==EditorStateValue::Playing&&!stopSent) {
+                if(cycleStart==0)cycleStart=now;
+                if(now-cycleStart>=cycleSeconds*1000000ull) {
+                    if(streamFrames==0)++emptyCycles;
+                    send(Command {Cmd::Stop});
+                    stopSent=true;
+                }
+            }
+            else if(state==EditorStateValue::Stopped&&stopSent) {
+                ++cyclesDone;
+                std::cout<<"Cycle "<<cyclesDone<<" frames "<<streamFrames<<std::endl;
+                stopSent=false;
+                cycleStart=0;
+                streamFrames=0;
+                pending.clear();
+                if(cyclesDone>=cycles)break;
+                send(Command {Cmd::Play});
+            }
+        }
         if(tapEvery&&state==EditorStateValue::Playing&&streamFrames>0&&now-lastTap>=tapEvery*1000ull&&now-start+250000<duration*1000000ull) {
             auto seq=++touchSeq;
             send(Touch {
@@ -265,7 +290,8 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
         out<<json.str()<<'\n';
         if(!out)throw std::runtime_error("Could not write stats JSON");
     }
-    return (!welcomed||errors||decodeErrors||((played||playSent)&&frames==0))?1:0;
+    if(cycles)std::cout<<"Cycles "<<cyclesDone<<"/"<<cycles<<" empty "<<emptyCycles<<std::endl;
+    return (!welcomed||errors||decodeErrors||((played||playSent)&&frames==0)||(cycles&&(cyclesDone<cycles||emptyCycles)))?1:0;
 }
 int main(int argc,char** argv) try {
     testtool::Args args(argc,argv,"|--play||--stop-at-end||--decode|");
