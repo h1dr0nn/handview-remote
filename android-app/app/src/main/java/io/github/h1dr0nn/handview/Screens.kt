@@ -55,9 +55,7 @@ fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit,
             Spacer(Modifier.width(HeaderButtonGap.dp))
             IconButton(Icons.Settings, stringResource(R.string.settings_title)) { open(Screen.Settings) }
         }
-        Spacer(Modifier.height(18.dp))
-        Text(stringResource(R.string.home_title), style = Type.Title, color = Palette.Ink)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.home_subtitle), style = Type.Subtitle, color = Palette.Muted)
         notice?.let { Spacer(Modifier.height(20.dp)); Notice(stringResource(it)) }
         SectionLabel(stringResource(R.string.ip_port))

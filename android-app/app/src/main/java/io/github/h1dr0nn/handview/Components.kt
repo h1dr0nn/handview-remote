@@ -42,7 +42,7 @@ const val HeaderButtonGap = 8
 fun Wordmark(text: String, modifier: Modifier = Modifier) {
     val size = with(LocalDensity.current) { HeaderButtonSize.toSp() }
     Text(
-        text.uppercase(), modifier.height(HeaderButtonSize), maxLines = 1, softWrap = false, color = Palette.Ink,
+        text, modifier.height(HeaderButtonSize), maxLines = 1, softWrap = false, color = Palette.Ink,
         style = Type.Wordmark.copy(
             fontSize = size, lineHeight = size,
             lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),

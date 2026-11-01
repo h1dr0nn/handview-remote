@@ -38,7 +38,7 @@ object Type {
     // Small caps-style labels above titles and in status rows.
     val Eyebrow = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 1.4.sp, fontFeatureSettings = "tnum")
     // Letter spacing in em so it scales with the computed size.
-    val Wordmark = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, letterSpacing = 0.04.em)
+    val Wordmark = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, letterSpacing = (-0.02).em)
     val Title = TextStyle(fontFamily = family, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp)
     val Subtitle = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
     val CardTitle = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 21.sp)
