@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- CI jobs for the native tests, the Android unit tests and lint, and the addon tests on Godot 4.4.1.
+- Release packaging: signed release APK from environment secrets, addon zip with checksum (`tools/package`), and a tag-triggered release workflow.
+
 ## [0.1.0] - 2026-11-01
 
 Foundation: every building block exists, is tested on its own, and the editor to game pipeline runs end to end on a PC.
