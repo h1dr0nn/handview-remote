@@ -77,6 +77,10 @@
     <string name="not_playing">Not Playing</string>
     <string name="not_playing_hint">Press Play to run the main scene on the PC.</string>
     <string name="paused">Paused</string>
+    <string name="reloading">Reloading</string>
+    <string name="reloading_hint">Starting the game again with your latest changes.</string>
+    <string name="compiling">Compiling</string>
+    <string name="compiling_hint">The editor is busy. The game comes back when it is done.</string>
     <string name="invalid_session">Session could not start: invalid launch details.</string>
     <string name="reject_token">The editor rejected the connection: bad token.</string>
     <string name="reject_version">The editor rejected the connection: unsupported protocol version.</string>

@@ -147,7 +147,7 @@ With "Allow Wi-Fi" on in the editor (DECISIONS D22):
 | Pause | Playing, Paused | Toggle pause (only if supported) |
 | Step | Paused | Advance one frame (only if supported) |
 | Stop | Playing, Paused | Stop the game |
-| Restart | Playing, Paused | Stop the game and start the main scene again, picking up code and scene changes; the state stays Playing |
+| Restart | Playing, Paused | Stop the game and start the main scene again, picking up code and scene changes. The host reports `EditorState{Reloading}` until the new run starts, then `EditorState{Playing}`; the app ignores the `StreamPaused{NotPlaying}` from the old run meanwhile |
 
 Other states: `CommandResult{Ignored}`. Compiling or Reloading: `CommandResult{Busy}`. Unsupported command for this host: `CommandResult{Ignored}`.
 

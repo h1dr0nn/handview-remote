@@ -240,7 +240,12 @@ class MainActivity : ComponentActivity(), Actions {
                     state.value = state.value.copy(width = if (m.width > 0 && m.height > 0) m.width else state.value.width, height = if (m.width > 0 && m.height > 0) m.height else state.value.height, orientation = m.orientation, latency = null)
                     orient(m.orientation)
                 }
-                is StreamPaused -> { touchReady = false; state.value = state.value.copy(editor = if (m.reason == PauseReason.Paused) EditorStateValue.Paused else EditorStateValue.Stopped) }
+                // While reloading, the old run's end is expected: keep showing Reloading.
+                is StreamPaused -> {
+                    touchReady = false
+                    if (state.value.editor != EditorStateValue.Reloading) state.value = state.value.copy(editor = if (m.reason == PauseReason.Paused) EditorStateValue.Paused else EditorStateValue.Stopped)
+                    Unit
+                }
                 is io.github.h1dr0nn.handview.protocol.Error -> state.value = state.value.copy(message = R.string.stream_error)
                 else -> Unit
             }.also {

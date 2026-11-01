@@ -84,6 +84,11 @@ var _playing: bool = false
 # True when the running game was started from the phone (hidden window).
 var _phone_play: bool = false
 var _hide_unset_pending: bool = false
+# Restart: the old run is stopping; play again once its link is gone (so the
+# phone gets the old run's end before the new Playing), or after a timeout.
+var _restart_pending: bool = false
+var _restart_wait: float = 0.0
+const RESTART_LINK_TIMEOUT_SEC: float = 3.0
 var _embed_timer: float = 0.0
 
 
@@ -212,6 +217,14 @@ func process(delta: float) -> void:
 	if _hide_unset_pending:
 		_hide_unset_pending = false
 		OS.unset_environment(ENV_HIDE_WINDOW)
+	if _restart_pending:
+		_restart_wait -= delta
+	if _restart_pending and _restart_wait <= 0.0 and not EditorInterface.is_playing_scene():
+		_restart_pending = false
+		_do_play()
+		if _phone_connected:
+			_session.call("send_editor_state", _editor_state)
+		state_changed.emit()
 	_refresh_timer += delta
 	if _refresh_timer >= REFRESH_INTERVAL_SEC:
 		refresh_devices()
@@ -580,6 +593,8 @@ func _handle_event(event: Dictionary) -> void:
 			_update_wifi()
 			_set_status("Too many wrong PINs. The PIN changed.")
 		"game_disconnected":
+			if _restart_pending:
+				_restart_wait = 0.0
 			if Logic.game_disconnect_is_stop(EditorInterface.is_playing_scene()):
 				_sync_playing()
 
@@ -607,11 +622,13 @@ func _handle_command(cmd: int) -> void:
 		state_changed.emit()
 		return
 	if action == Logic.ACTION_RESTART:
-		# Stop and start again in the same frame, so the phone never sees the
-		# play end; the new run loads the current scripts and scenes.
+		# The phone shows Reloading while the old run stops; process() plays
+		# again once it is gone, and the new run loads the current scripts.
 		EditorInterface.stop_playing_scene()
 		_embed.end_launch()
-		_do_play()
+		_restart_pending = true
+		_restart_wait = RESTART_LINK_TIMEOUT_SEC
+		_set_editor_state(Logic.STATE_RELOADING, false)
 		_session.call("send_command_result", cmd, decision["result"], _editor_state)
 		_session.call("send_editor_state", _editor_state)
 		state_changed.emit()
@@ -653,6 +670,9 @@ func _set_editor_state(state: int, announce: bool) -> void:
 
 # Follows EditorInterface.is_playing_scene() and tells the phone about changes.
 func _sync_playing() -> void:
+	# A restart stops and starts on purpose; process() reports its end.
+	if _restart_pending:
+		return
 	var transition: Dictionary = Logic.playing_transition(_playing, EditorInterface.is_playing_scene())
 	if transition.is_empty():
 		return

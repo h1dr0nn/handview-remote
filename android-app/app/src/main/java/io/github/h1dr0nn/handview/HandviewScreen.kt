@@ -305,24 +305,32 @@ private fun Stage(ui: CastState, actions: Actions, modifier: Modifier) {
         val ratio = if (ui.width > 0 && ui.height > 0) ui.width.toFloat() / ui.height else screen.screenWidthDp.coerceAtLeast(1).toFloat() / screen.screenHeightDp.coerceAtLeast(1)
         // Before a stream there is no picture to letterbox: fill the stage.
         val videoModifier = when {
-            ui.editor == EditorStateValue.Stopped -> Modifier.fillMaxSize()
+            ui.editor == EditorStateValue.Stopped || ui.editor == EditorStateValue.Reloading -> Modifier.fillMaxSize()
             maxWidth / maxHeight > ratio -> Modifier.fillMaxHeight().aspectRatio(ratio)
             else -> Modifier.fillMaxWidth().aspectRatio(ratio)
         }
         AndroidView(factory = { actions.surface() }, modifier = videoModifier)
         when (ui.editor) {
-            EditorStateValue.Stopped -> Column(
-                Modifier.padding(24.dp).widthIn(max = 320.dp).clip(RoundedCornerShape(20.dp)).background(Palette.Paper).padding(horizontal = 22.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(stringResource(R.string.not_playing), style = Type.Heading, color = Palette.Ink, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(6.dp))
-                Text(stringResource(R.string.not_playing_hint), style = Type.Caption, color = Palette.Muted, textAlign = TextAlign.Center)
-            }
+            EditorStateValue.Stopped -> StagePanel(R.string.not_playing, R.string.not_playing_hint)
+            EditorStateValue.Reloading -> StagePanel(R.string.reloading, R.string.reloading_hint)
+            EditorStateValue.Compiling -> StagePanel(R.string.compiling, R.string.compiling_hint)
             EditorStateValue.Paused -> Box(Modifier.align(Alignment.TopStart).padding(12.dp).clip(CircleShape).background(Palette.Paper).padding(horizontal = 12.dp, vertical = 6.dp)) {
                 Eyebrow(stringResource(R.string.paused), color = Palette.Ink)
             }
             else -> Unit
         }
+    }
+}
+
+// A message card in the middle of the stage.
+@Composable
+private fun StagePanel(title: Int, hint: Int) {
+    Column(
+        Modifier.padding(24.dp).widthIn(max = 320.dp).clip(RoundedCornerShape(20.dp)).background(Palette.Paper).padding(horizontal = 22.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(stringResource(title), style = Type.Heading, color = Palette.Ink, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        Text(stringResource(hint), style = Type.Caption, color = Palette.Muted, textAlign = TextAlign.Center)
     }
 }

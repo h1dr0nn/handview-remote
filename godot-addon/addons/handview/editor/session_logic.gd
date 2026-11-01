@@ -72,8 +72,10 @@ static func state_after(action: String, state: int) -> int:
 		return STATE_STOPPED
 	if action == ACTION_PAUSE or action == ACTION_STEP:
 		return STATE_PAUSED
-	if action == ACTION_RESUME or action == ACTION_RESTART:
+	if action == ACTION_RESUME:
 		return STATE_PLAYING
+	if action == ACTION_RESTART:
+		return STATE_RELOADING
 	return state
 
 

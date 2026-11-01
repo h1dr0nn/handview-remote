@@ -34,7 +34,7 @@ func test_restart_while_running() -> void:
 	_decide(Logic.CMD_RESTART, Logic.STATE_PLAYING, Logic.RESULT_OK, Logic.ACTION_RESTART)
 	_decide(Logic.CMD_RESTART, Logic.STATE_PAUSED, Logic.RESULT_OK, Logic.ACTION_RESTART)
 	_decide(Logic.CMD_RESTART, Logic.STATE_STOPPED, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
-	_eq(Logic.state_after(Logic.ACTION_RESTART, Logic.STATE_PAUSED), Logic.STATE_PLAYING, "restart plays")
+	_eq(Logic.state_after(Logic.ACTION_RESTART, Logic.STATE_PAUSED), Logic.STATE_RELOADING, "restart reloads first")
 
 
 func test_pause_toggles() -> void:
