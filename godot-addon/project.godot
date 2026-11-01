@@ -1,0 +1,12 @@
+; Dev and test project for the Handview addon. Not shipped.
+
+config_version=5
+
+[application]
+
+config/name="Handview Addon Dev"
+config/features=PackedStringArray("4.4")
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
