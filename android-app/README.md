@@ -9,8 +9,11 @@ Handview Android client. Kotlin + Jetpack Compose.
 ## Build
 
 ```bash
-./gradlew :client:test :app:assembleDebug :app:lintDebug
+./gradlew :protocol:test :client:test :app:assembleDebug :app:lintDebug
+./gradlew :app:assembleRelease
 ```
+
+`:protocol:test` and `:client:test` are plain JVM unit tests. `:app:assembleDebug` writes the debug APK to `app/build/outputs/apk/debug/`. `:app:assembleRelease` writes to `app/build/outputs/apk/release/`: `app-release.apk` when the four signing environment variables are set (`HANDVIEW_KEYSTORE_FILE`, `HANDVIEW_KEYSTORE_PASSWORD`, `HANDVIEW_KEY_ALIAS`, `HANDVIEW_KEY_PASSWORD`; see `tools/package/README.md`), `app-release-unsigned.apk` otherwise. JDK 17 is required.
 
 Point Gradle at your SDK with `ANDROID_HOME` or a `local.properties` file containing `sdk.dir=...` (not committed).
 
