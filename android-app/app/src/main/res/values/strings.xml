@@ -18,9 +18,9 @@
     <string name="not_playing">Not playing</string>
     <string name="paused">Paused</string>
     <string name="invalid_session">Session could not start: invalid launch details.</string>
-    <string name="reject_token">Session rejected: the token is invalid.</string>
-    <string name="reject_version">Session rejected: the protocol version is unsupported.</string>
-    <string name="reject_busy">Session rejected: the editor already has a session.</string>
+    <string name="reject_token">The editor rejected the connection: bad token.</string>
+    <string name="reject_version">The editor rejected the connection: unsupported protocol version.</string>
+    <string name="reject_busy">The editor rejected the connection: editor busy.</string>
     <string name="ended_connection">Session ended: the editor closed the connection.</string>
     <string name="ended_timeout">Session ended: the editor stopped responding.</string>
     <string name="ended_protocol">Session ended: a protocol error occurred.</string>

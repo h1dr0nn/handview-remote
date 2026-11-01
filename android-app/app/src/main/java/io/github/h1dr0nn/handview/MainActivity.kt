@@ -28,6 +28,11 @@ class MainActivity : ComponentActivity() {
     private var token: String? = null
     @Volatile private var generation = 0
     private var touchSeq = 0L
+    private var touchReady = false
+    private var renderedStream = -1
+    @Volatile private var stream = 0
+    private var screenWidth = 1
+    private var screenHeight = 1
     private var frames = 0
     private var fpsSince = System.nanoTime()
     private val refresh = object : Runnable {
@@ -51,11 +56,13 @@ class MainActivity : ComponentActivity() {
                 HandviewScreen(ui, ::command, ::disconnect, ::surfaceView)
             }
         }
-        launch(intent)
+        if (savedInstanceState == null || intent.hasExtra("token")) launch(intent)
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); launch(intent) }
     private fun launch(intent: Intent) {
-        val next = intent.getStringExtra("token") ?: return
+        val next = intent.getStringExtra("token")
+        intent.removeExtra("token")
+        if (next == null) return
         if (next == token) return
         disconnect()
         val port = intent.getIntExtra("port", 0)
@@ -65,8 +72,10 @@ class MainActivity : ComponentActivity() {
         token = next; touchSeq = 0; frames = 0; fpsSince = System.nanoTime()
         state.value = CastState(connecting = true)
         val current = generation
+        val display = runCatching { deviceDisplay(this) }.getOrElse { end(R.string.device_error); return }
+        screenWidth = display.width; screenHeight = display.height
         Thread({
-            val greeting = runCatching { deviceHello(this) }
+            val greeting = runCatching { deviceHello(display) }
             main.post {
                 if (current != generation) return@post
                 val hello = greeting.getOrElse { end(R.string.device_error); return@post }
@@ -77,8 +86,8 @@ class MainActivity : ComponentActivity() {
                     } else {
                         if (current == generation) {
                             when (received) {
-                                is SessionClient.Event.Connected -> decoder?.configure(received.welcome.width, received.welcome.height)
-                                is SessionClient.Event.Received -> (received.message as? StreamConfigChanged)?.let { decoder?.configure(it.width, it.height) }
+                                is SessionClient.Event.Connected -> decoder?.configure(received.welcome.width.takeIf { it > 0 && received.welcome.height > 0 } ?: screenWidth, received.welcome.height.takeIf { it > 0 && received.welcome.width > 0 } ?: screenHeight, stream)
+                                is SessionClient.Event.Received -> (received.message as? StreamConfigChanged)?.let { stream++; decoder?.configure(if (it.width > 0 && it.height > 0) it.width else state.value.width, if (it.width > 0 && it.height > 0) it.height else state.value.height, stream) }
                                 else -> Unit
                             }
                         }
@@ -86,7 +95,16 @@ class MainActivity : ComponentActivity() {
                     }
                 })
                 client = session
-                decoder = VideoDecoder(session, latency) { main.post { if (current == generation) frames++ } }
+                decoder = VideoDecoder(session) { renderedStream, touch, nanos -> main.post {
+                    if (current == generation && renderedStream == stream) {
+                        frames++
+                        if (state.value.editor == EditorStateValue.Playing) {
+                            touchReady = true
+                            this.renderedStream = renderedStream
+                            latency.onFrameRendered(touch, nanos)
+                        }
+                    }
+                } }
                 session.start()
             }
         }, "handview-device-info").start()
@@ -96,7 +114,7 @@ class MainActivity : ComponentActivity() {
         when (event) {
             is SessionClient.Event.Connected -> {
                 val w = event.welcome
-                state.value = CastState(welcome = w, editor = w.editorState, width = w.width, height = w.height, orientation = w.orientation)
+                state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
             }
             is SessionClient.Event.Rejected -> end(when (event.reason) {
@@ -117,13 +135,14 @@ class MainActivity : ComponentActivity() {
                 }
             })
             is SessionClient.Event.Received -> when (val m = event.message) {
-                is EditorState -> state.value = state.value.copy(editor = m.state, busy = false)
-                is CommandResult -> state.value = state.value.copy(editor = m.editorState, busy = m.result == io.github.h1dr0nn.handview.protocol.Result.Busy)
+                is EditorState -> { if (m.state != EditorStateValue.Playing) touchReady = false; state.value = state.value.copy(editor = m.state, busy = false) }
+                is CommandResult -> { if (m.editorState != EditorStateValue.Playing) touchReady = false; state.value = state.value.copy(editor = m.editorState, busy = m.result == io.github.h1dr0nn.handview.protocol.Result.Busy) }
                 is StreamConfigChanged -> {
-                    state.value = state.value.copy(width = m.width, height = m.height, orientation = m.orientation)
+                    latency.clear(); touchReady = false
+                    state.value = state.value.copy(width = if (m.width > 0 && m.height > 0) m.width else state.value.width, height = if (m.width > 0 && m.height > 0) m.height else state.value.height, orientation = m.orientation, latency = null)
                     orient(m.orientation)
                 }
-                is StreamPaused -> state.value = state.value.copy(editor = if (m.reason == PauseReason.Paused) EditorStateValue.Paused else EditorStateValue.Stopped)
+                is StreamPaused -> { touchReady = false; state.value = state.value.copy(editor = if (m.reason == PauseReason.Paused) EditorStateValue.Paused else EditorStateValue.Stopped) }
                 is io.github.h1dr0nn.handview.protocol.Error -> state.value = state.value.copy(message = R.string.stream_error)
                 else -> Unit
             }
@@ -137,7 +156,7 @@ class MainActivity : ComponentActivity() {
     private fun disconnect() {
         generation++; decoder?.close(); decoder = null
         client?.close(ByeReason.Normal); client = null; token = null
-        latency.clear(); state.value = CastState()
+        latency.clear(); touchReady = false; state.value = CastState()
     }
     private fun surfaceView(): SurfaceView = SurfaceView(this).apply {
         holder.addCallback(object : SurfaceHolder.Callback {
@@ -146,7 +165,7 @@ class MainActivity : ComponentActivity() {
             override fun surfaceDestroyed(holder: SurfaceHolder) { decoder?.setSurface(null) }
         })
         setOnTouchListener { view, motion ->
-            if (state.value.editor == EditorStateValue.Playing && motion.pointerCount in 1..10) {
+            if (touchReady && renderedStream == stream && state.value.editor == EditorStateValue.Playing && motion.pointerCount in 1..10) {
                 val ui = state.value
                 val pointers = (0 until motion.pointerCount).map { i ->
                     val phase = when (motion.actionMasked) {

@@ -61,8 +61,8 @@ class SessionClient(
             if (stopped.get()) { socket.close(); return null }
             if (isVideo) video = socket else control = socket
         }
-        socket.tcpNoDelay = true
         socket.connect(InetSocketAddress("127.0.0.1", port), 5000)
+        socket.tcpNoDelay = true
         return socket
     }
     private fun read(socket: Socket, channel: Channel) {
@@ -109,7 +109,7 @@ class SessionClient(
                     } catch (_: Exception) { finish(DisconnectReason.IoError) }
                 }, "handview-video-reader").start()
             }
-            is Reject -> { listener(Event.Rejected(message.reason)); finish(DisconnectReason.Remote(ByeReason.Normal)) }
+            is Reject -> finish(null, rejected = message.reason)
             is Ping -> send(Pong(message.timeUs))
             is Pong -> Unit
             is Bye -> finish(DisconnectReason.Remote(message.reason))
@@ -142,18 +142,18 @@ class SessionClient(
     fun sendError(source: ErrorSource, code: ErrorCode) = send(io.github.h1dr0nn.handview.protocol.Error(source, code))
     fun close(byeReason: ByeReason = ByeReason.Normal) = finish(DisconnectReason.Remote(byeReason), byeReason)
     private fun protocolError() = finish(DisconnectReason.ProtocolError, ByeReason.ProtocolError)
-    private fun finish(reason: DisconnectReason, bye: ByeReason? = null) {
+    private fun finish(reason: DisconnectReason?, bye: ByeReason? = null, rejected: RejectReason? = null) {
         synchronized(lock) {
             if (!stopped.compareAndSet(false, true)) return
             timer.shutdownNow()
             if (bye != null) writer.execute { write(Bye(bye)); cleanup(reason) }
-            else writer.execute { cleanup(reason) }
+            else writer.execute { cleanup(reason); rejected?.let { listener(Event.Rejected(it)) } }
             writer.shutdown()
         }
     }
-    private fun cleanup(reason: DisconnectReason) {
+    private fun cleanup(reason: DisconnectReason?) {
         runCatching { control?.close() }; runCatching { video?.close() }
-        listener(Event.Disconnected(reason))
+        reason?.let { listener(Event.Disconnected(it)) }
     }
     companion object {
         fun decodeToken(hex: String): ByteArray {

@@ -7,8 +7,17 @@ class LatencyTracker {
     data class Summary(val p50: Double, val p95: Double, val max: Double)
     private val pending = linkedMapOf<Long, Long>()
     private val samples = ArrayDeque<Pair<Long, Long>>()
-    @Synchronized fun record(touchSeq: Long, t0Nanos: Long) { pending[touchSeq] = t0Nanos }
+    @Synchronized fun record(touchSeq: Long, t0Nanos: Long) {
+        prunePending(t0Nanos)
+        pending[touchSeq] = t0Nanos
+        while (pending.size > 256) pending.remove(pending.keys.first())
+    }
+    private fun prunePending(now: Long) {
+        pending.entries.removeAll { it.value < now - 5_000_000_000L }
+    }
     @Synchronized fun onFrameRendered(lastTouchSeq: Long, renderNanos: Long) {
+        prunePending(renderNanos)
+        if (lastTouchSeq == 0L) return
         val iterator = pending.iterator()
         while (iterator.hasNext()) {
             val (seq, start) = iterator.next()
@@ -23,6 +32,7 @@ class LatencyTracker {
         while (samples.isNotEmpty() && (samples.first().first < now - 10_000_000_000L || samples.size > 500)) samples.removeFirst()
     }
     @Synchronized fun summary(nowNanos: Long = System.nanoTime()): Summary? {
+        prunePending(nowNanos)
         prune(nowNanos)
         val sorted = samples.map { it.second / 1_000_000.0 }.sorted()
         if (sorted.isEmpty()) return null

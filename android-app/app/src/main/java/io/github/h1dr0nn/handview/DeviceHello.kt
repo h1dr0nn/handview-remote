@@ -7,11 +7,17 @@ import android.media.MediaCodecList
 import android.util.DisplayMetrics
 import io.github.h1dr0nn.handview.protocol.*
 
+data class DeviceDisplay(val width: Int, val height: Int, val dpi: Int, val refreshHz: Int)
+
 @Suppress("DEPRECATION")
-fun deviceHello(activity: Activity): Hello {
+fun deviceDisplay(activity: Activity): DeviceDisplay {
     val metrics = DisplayMetrics()
     activity.windowManager.defaultDisplay.getRealMetrics(metrics)
     val bounds = if (Build.VERSION.SDK_INT >= 30) activity.windowManager.maximumWindowMetrics.bounds else null
+    return DeviceDisplay((bounds?.width() ?: metrics.widthPixels).coerceIn(1,65535), (bounds?.height() ?: metrics.heightPixels).coerceIn(1,65535), metrics.densityDpi.coerceIn(1,65535), activity.windowManager.defaultDisplay.refreshRate.toInt().coerceIn(1,255))
+}
+
+fun deviceHello(display: DeviceDisplay): Hello {
     val decoders = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.asSequence()
         .filter { !it.isEncoder && it.supportedTypes.any { type -> type.equals("video/avc", true) } }
         .filter { if (Build.VERSION.SDK_INT >= 29) it.isHardwareAccelerated else !it.name.startsWith("OMX.google.", true) && !it.name.startsWith("c2.android.", true) }
@@ -22,7 +28,7 @@ fun deviceHello(activity: Activity): Hello {
             val level = caps.profileLevels.filter { profiles[it.profile] == profile }.maxOf { avcLevel(it.level) }
             Decoder(Codec.H264, profile, level, caps.videoCapabilities.supportedWidths.upper.coerceAtMost(65535), caps.videoCapabilities.supportedHeights.upper.coerceAtMost(65535))
         }.getOrNull() }.take(4).toList()
-    return Hello(PROTOCOL_VERSION, Bytes(ByteArray(32)), (bounds?.width() ?: metrics.widthPixels).coerceIn(1,65535), (bounds?.height() ?: metrics.heightPixels).coerceIn(1,65535), metrics.densityDpi.coerceIn(1,65535), activity.windowManager.defaultDisplay.refreshRate.toInt().coerceIn(1,255), decoders, Build.MODEL)
+    return Hello(PROTOCOL_VERSION, Bytes(ByteArray(32)), display.width, display.height, display.dpi, display.refreshHz, decoders, Build.MODEL)
 }
 
 private fun avcLevel(level: Int): Int = when (level) {

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.h1dr0nn.handview.client.LatencyTracker
@@ -63,7 +64,8 @@ fun HandviewScreen(ui: CastState, command: (Cmd) -> Unit, disconnect: () -> Unit
 @Composable
 private fun Video(ui: CastState, surface: () -> SurfaceView, command: (Cmd) -> Unit, modifier: Modifier) {
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val ratio = ui.width.toFloat() / ui.height
+        val screen = LocalConfiguration.current
+        val ratio = if (ui.width > 0 && ui.height > 0) ui.width.toFloat() / ui.height else screen.screenWidthDp.coerceAtLeast(1).toFloat() / screen.screenHeightDp.coerceAtLeast(1)
         val videoModifier = if (maxWidth / maxHeight > ratio) Modifier.fillMaxHeight().aspectRatio(ratio) else Modifier.fillMaxWidth().aspectRatio(ratio)
         AndroidView(factory = { surface() }, modifier = videoModifier)
         if (ui.editor == EditorStateValue.Stopped) {

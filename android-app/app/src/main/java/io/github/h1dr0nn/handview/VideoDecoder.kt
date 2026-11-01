@@ -13,8 +13,7 @@ import java.nio.ByteBuffer
 
 class VideoDecoder(
     private val client: SessionClient,
-    private val latency: LatencyTracker,
-    private val rendered: () -> Unit,
+    private val rendered: (Int, Long, Long) -> Unit,
 ) {
     private val thread = HandlerThread("handview-codec").apply { start() }
     private val handler = Handler(thread.looper)
@@ -23,6 +22,7 @@ class VideoDecoder(
     private var width = 1
     private var height = 1
     private var configured = false
+    private var stream = 0
     private var waiting = true
     private var closed = false
     private var lagSince = 0L
@@ -30,9 +30,10 @@ class VideoDecoder(
     private var dropped = 0
     private val inputs = ArrayDeque<Int>()
     private val frames = ArrayDeque<VideoFrame>()
-    private data class Stamp(val seq: Long, val touch: Long)
+    private data class Stamp(val seq: Long, val touch: Long, val pts: Long)
     private data class Output(val index: Int, val pts: Long, val stamp: Stamp?)
-    private val stamps = mutableMapOf<Long, Stamp>()
+    private val stamps = ArrayDeque<Stamp>()
+    private var lastOutputSeq = 0L
     private val displaying = mutableMapOf<Long, Stamp>()
     private val outputs = ArrayDeque<Output>()
     private var drainPosted = false
@@ -63,10 +64,10 @@ class VideoDecoder(
             if (waiting && frames.isEmpty()) client.requestKeyframe()
         }
     } }
-    fun configure(w: Int, h: Int) { handler.post {
-        if (closed) return@post
+    fun configure(w: Int, h: Int, streamId: Int) { handler.post {
+        if (closed || w <= 0 || h <= 0) return@post
         if (configured) reset()
-        width = w; height = h; configured = true
+        width = w; height = h; stream = streamId; configured = true
         try { feed() } catch (_: Exception) { recover(ErrorCode.InitFailed) }
     } }
     fun frame(frame: VideoFrame) { handler.post {
@@ -80,6 +81,7 @@ class VideoDecoder(
         val pps = AnnexB.pps(data) ?: error("Missing PPS")
         fun format(optional: Boolean, c: MediaCodec): MediaFormat {
             return MediaFormat.createVideoFormat("video/avc", width, height).apply {
+                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, (width.toLong() * height * 3 / 2).coerceIn(1_048_576L, Int.MAX_VALUE.toLong()).toInt())
                 setByteBuffer("csd-0", ByteBuffer.wrap(AnnexB.csd(sps)))
                 setByteBuffer("csd-1", ByteBuffer.wrap(AnnexB.csd(pps)))
                 if (optional) {
@@ -111,8 +113,11 @@ class VideoDecoder(
             }
             override fun onOutputBufferAvailable(c: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
                 if (c !== codec) return
-                val stamp = stamps.remove(info.presentationTimeUs)
-                stamp?.let { client.sendFrameAck(it.seq) }
+                val match = stamps.indexOfFirst { it.pts == info.presentationTimeUs }
+                var stamp: Stamp? = null
+                repeat(if (match >= 0) match + 1 else if (stamps.isNotEmpty()) 1 else 0) { stamp = stamps.removeFirst() }
+                stamp?.let { lastOutputSeq = it.seq }
+                client.sendFrameAck(lastOutputSeq)
                 outputs.addLast(Output(index, info.presentationTimeUs, stamp))
                 if (!drainPosted) { drainPosted = true; handler.post { drain() } }
             }
@@ -123,8 +128,7 @@ class VideoDecoder(
         }, handler)
         candidate.setOnFrameRenderedListener({ c, pts, nanoTime ->
             if (c === codec) displaying.remove(pts)?.let {
-                latency.onFrameRendered(it.touch, nanoTime)
-                rendered()
+                rendered(stream, it.touch, nanoTime)
             }
         }, handler)
     }
@@ -142,8 +146,9 @@ class VideoDecoder(
             val frame = frames.removeFirst()
             val bytes = frame.data.toByteArray()
             val buffer = c.getInputBuffer(index) ?: error("No input buffer")
+            check(buffer.capacity() >= bytes.size) { "Input buffer too small" }
             buffer.clear(); buffer.put(bytes)
-            stamps[frame.ptsUs] = Stamp(frame.frameSeq, frame.lastTouchSeq)
+            stamps.addLast(Stamp(frame.frameSeq, frame.lastTouchSeq, frame.ptsUs))
             c.queueInputBuffer(index, 0, bytes.size, frame.ptsUs, 0)
         }
     }

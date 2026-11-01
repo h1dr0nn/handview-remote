@@ -39,7 +39,7 @@ class HelpersTest {
         val t = LatencyTracker()
         t.record(0xffffffffL,0); t.record(1,0)
         t.onFrameRendered(0,1_000_000)
-        assertEquals(1.0,t.summary(1_000_000)!!.max,0.0)
+        assertNull(t.summary(1_000_000))
         t.onFrameRendered(1,3_000_000)
         t.onFrameRendered(1,100_000_000)
         assertEquals(3.0,t.summary(100_000_000)!!.max,0.0)
@@ -54,6 +54,20 @@ class HelpersTest {
         val t = LatencyTracker()
         for (i in 1..501) { t.record(i.toLong(),0); t.onFrameRendered(i.toLong(),i * 1_000_000L) }
         assertEquals(251.0,t.summary(501_000_000)!!.p50,0.0)
+    }
+    @Test fun latencyPendingCapsAt256() {
+        val t = LatencyTracker()
+        for (i in 1..300) t.record(i.toLong(), i * 1_000_000L)
+        t.onFrameRendered(300,301_000_000)
+        assertEquals(256.0,t.summary(301_000_000)!!.max,0.0)
+    }
+    @Test fun latencyEvictsPendingBeforeRecordingAndRendering() {
+        val t = LatencyTracker()
+        t.record(1,0); t.record(2,5_000_000_001L)
+        t.onFrameRendered(2,5_001_000_001L)
+        assertEquals(1.0,t.summary(5_001_000_001L)!!.max,0.0)
+        t.clear(); t.record(3,0); t.onFrameRendered(3,5_000_000_001L)
+        assertNull(t.summary(5_000_000_001L))
     }
     @Test fun hexValidation() {
         assertArrayEquals(ByteArray(32) { 0xab.toByte() }, SessionClient.decodeToken("Ab".repeat(32)))

@@ -55,19 +55,23 @@ class SessionClientTest {
             } finally { client.close() }
         }
     }
-    @Test fun rejectBadToken() {
-        ServerSocket(0).apply { soTimeout = 4000 }.use { host ->
-            val events = LinkedBlockingQueue<SessionClient.Event>()
-            val client = SessionClient(host.localPort,"00".repeat(32),hello,{ events.add(it) })
-            try {
-                client.start()
-                host.accept().use { socket ->
-                    read(socket)
-                    socket.getOutputStream().write(encode(Reject(RejectReason.BadToken)))
-                    assertEquals(SessionClient.Event.Rejected(RejectReason.BadToken),await(events) { it is SessionClient.Event.Rejected })
-                    await(events) { it is SessionClient.Event.Disconnected }
-                }
-            } finally { client.close() }
+    @Test fun rejectReasonsCloseWithoutDisconnected() {
+        for (reason in RejectReason.entries) {
+            ServerSocket(0).apply { soTimeout = 4000 }.use { host ->
+                val events = LinkedBlockingQueue<SessionClient.Event>()
+                val client = SessionClient(host.localPort,"00".repeat(32),hello,{ events.add(it) })
+                try {
+                    client.start()
+                    host.accept().use { socket ->
+                        read(socket)
+                        socket.getOutputStream().write(encode(Reject(reason)))
+                        assertEquals(SessionClient.Event.Rejected(reason),await(events) { it is SessionClient.Event.Rejected })
+                        assertEquals(-1,socket.getInputStream().read())
+                        client.close()
+                        assertNull(events.poll(200,TimeUnit.MILLISECONDS))
+                    }
+                } finally { client.close() }
+            }
         }
     }
     @Test fun pingPongAndUnknownType() {
