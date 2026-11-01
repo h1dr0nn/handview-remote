@@ -26,6 +26,9 @@ data class AppSettings(
     val dark: Boolean? = null,
 )
 
+// The video choices as sent to the editor (0 = automatic).
+fun AppSettings.streamPrefs() = io.github.h1dr0nn.handview.protocol.StreamPrefs(resolution.longSide, resolution.shortSide, fps, bitrateKbps.toLong())
+
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("handview", Context.MODE_PRIVATE)
 

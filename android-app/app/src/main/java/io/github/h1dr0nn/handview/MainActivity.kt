@@ -156,6 +156,7 @@ class MainActivity : ComponentActivity(), Actions {
             is SessionClient.Event.Connected -> {
                 val w = event.welcome
                 // The stage may have been measured before the session existed.
+                client?.sendStreamPrefs(app.value.settings.streamPrefs())
                 if (view.width > 0 && view.height > 0) client?.sendViewSize(view)
                 state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
@@ -204,7 +205,11 @@ class MainActivity : ComponentActivity(), Actions {
     override fun command(cmd: Cmd) { client?.sendCommand(cmd) }
     override fun open(screen: Screen) { app.value = app.value.copy(screen = screen, notice = null); state.value = state.value.copy(message = null) }
     override fun wifiNotReady() { app.value = app.value.copy(screen = Screen.Home, notice = R.string.wifi_not_ready) }
-    override fun change(settings: AppSettings) { store.save(settings); app.value = app.value.copy(settings = settings); applyTheme() }
+    override fun change(settings: AppSettings) {
+        val video = settings.streamPrefs() != app.value.settings.streamPrefs()
+        store.save(settings); app.value = app.value.copy(settings = settings); applyTheme()
+        if (video) client?.sendStreamPrefs(settings.streamPrefs())
+    }
     override fun toggleTheme() { change(app.value.settings.copy(dark = !Palette.dark)) }
     private fun applyTheme() {
         val system = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES

@@ -47,6 +47,7 @@ Sizes are payload sizes. `N` = `decoderCount`, `M` = `modelLen`, `C` = `count`, 
 | `0x0033` | StreamPaused | Host to App | `u8 reason` | 1 |
 | `0x0034` | Error | both | `u8 source`, `u16 code` | 3 |
 | `0x0035` | FrameAck | App to Host | `u32 frameSeq` | 4 |
+| `0x0037` | StreamPrefs | App to Host | `u16 maxLongSide`, `u16 maxShortSide`, `u8 maxFps`, `u32 bitrateKbps` | 9 |
 | `0x0036` | ViewSize | App to Host | `u16 width`, `u16 height`, `u16 safeLeft`, `u16 safeTop`, `u16 safeRight`, `u16 safeBottom` | 12 |
 | `0x0040` | Ping | both | `u64 timeUs` | 8 |
 | `0x0041` | Pong | both | `u64 timeUs` (echo of the Ping) | 8 |
@@ -60,6 +61,7 @@ Field notes:
 - `DecoderStats` is sent every 250 ms.
 - `FrameAck` is sent for every frame the decoder has output, and for frames the app drops before decoding (while it waits for an IDR after a decoder restart).
 - `StreamConfigChanged`: the next `VideoFrame` is an IDR.
+- `StreamPrefs` holds the user's video choices, 0 meaning automatic. The app sends it after `Welcome` and when the user changes a setting. The host applies it at once: stream size = min(Resolution Cap, `maxLongSide` x `maxShortSide`), frame rate `maxFps`, and `bitrateKbps` replaces the host's default; the stream restarts with `StreamConfigChanged` and an IDR.
 - `ViewSize` is the size in pixels of the area the app shows the video in. The app sends it after `Welcome` and whenever the area changes (rotation, full screen). A host may fit the game to its aspect ratio; the Godot host resizes the hidden window of a play started from the phone and leaves other windows alone. 0 x 0 means no preference. The `safe*` fields are the unsafe edges of that area (display cutout, system bars) in its pixels, 0 when the area is fully usable; the Godot host scales them to the game window and exposes them as `Handview.get_safe_area()`.
 - `VideoFrame.lastTouchSeq` is the seq of the newest `Touch` the game had processed in the update that produced this frame, 0 if none yet.
 

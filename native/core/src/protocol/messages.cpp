@@ -135,6 +135,13 @@ std::vector<std::uint8_t> encode(const Message& message) {
             type = 53;
             w.u32(m.frameSeq);
         }
+        if constexpr (std::is_same_v<T, StreamPrefs>) {
+            type = 55;
+            w.u16(m.maxLongSide);
+            w.u16(m.maxShortSide);
+            w.u8(m.maxFps);
+            w.u32(m.bitrateKbps);
+        }
         if constexpr (std::is_same_v<T, ViewSize>) {
             type = 54;
             w.u16(m.width);
@@ -310,6 +317,14 @@ DecodeResult decode(const std::uint8_t* data, std::size_t size, Channel channel)
     case 53: {
         FrameAck m;
         m.frameSeq = r.u32();
+        message = std::move(m); break;
+    }
+    case 55: {
+        StreamPrefs m;
+        m.maxLongSide = r.u16();
+        m.maxShortSide = r.u16();
+        m.maxFps = r.u8();
+        m.bitrateKbps = r.u32();
         message = std::move(m); break;
     }
     case 54: {

@@ -86,6 +86,7 @@ struct EditorServer::Impl {
         Hello hello;
         Welcome welcome;
         std::optional<ViewSize> view;
+        std::optional<StreamPrefs> prefs;
         std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
     };
     net::WinsockInit winsock;
@@ -113,12 +114,21 @@ struct EditorServer::Impl {
     std::deque<std::pair<std::shared_ptr<Session>,std::vector<std::uint8_t>>> videos;
     void wake_video() { std::lock_guard lock(video_mutex); video_cv.notify_all(); }
     void send_app(const Message& m) { std::shared_ptr<Peer> p; { std::lock_guard lock(mutex); if (active) p = active->control; } if (p) p->writer.send(m); }
-    LinkStart caps(const Hello& h) const {
+    // Stream limits for the game: phone screen and decoder, then the user's
+    // StreamPrefs (0 fields keep the default).
+    LinkStart caps(const Hello& h, const std::optional<StreamPrefs>& prefs = std::nullopt) const {
         auto w = (std::max)(h.screenW,h.screenH), s = (std::min)(h.screenW,h.screenH);
         std::uint16_t dw = 0, ds = 0;
         for (const auto& d : h.decoders) { auto a = (std::max)(d.maxW,d.maxH), b = (std::min)(d.maxW,d.maxH); if (static_cast<unsigned>(a)*b > static_cast<unsigned>(dw)*ds) { dw=a; ds=b; } }
         if (dw && ds) { w=(std::min)(w,dw); s=(std::min)(s,ds); }
-        return {w,s,config.host.fps,config.host.bitrateKbps};
+        LinkStart start{w,s,config.host.fps,config.host.bitrateKbps};
+        if (prefs) {
+            if (prefs->maxLongSide) start.maxW = (std::min)(start.maxW, prefs->maxLongSide);
+            if (prefs->maxShortSide) start.maxH = (std::min)(start.maxH, prefs->maxShortSide);
+            if (prefs->maxFps) start.maxFps = prefs->maxFps;
+            if (prefs->bitrateKbps) start.bitrateKbps = prefs->bitrateKbps;
+        }
+        return start;
     }
     void finish(const std::shared_ptr<Session>& session, ByeReason reason, bool timeout = false) {
         std::lock_guard transition_lock(handshake_mutex);
@@ -183,6 +193,12 @@ struct EditorServer::Impl {
                 events.push(std::move(event));
             }
             else if(const auto* bye=std::get_if<Bye>(&f.message)) { finish(own,bye->reason); return false; }
+            else if(const auto* prefs=std::get_if<StreamPrefs>(&f.message)) {
+                // Applied at once: a linked game restarts its stream with the new limits.
+                std::shared_ptr<Peer> g; LinkStart start;
+                { std::lock_guard lock(mutex); own->prefs=*prefs; g=game; start=caps(own->hello,own->prefs); }
+                if(g) g->writer.send(start);
+            }
             else if(const auto* view=std::get_if<ViewSize>(&f.message)) {
                 // Kept for a game that links later; forwarded to one already linked.
                 std::shared_ptr<Peer> g; { std::lock_guard lock(mutex); own->view=*view; g=game; } if(g) g->writer.send_bytes(f.bytes);
@@ -208,7 +224,7 @@ struct EditorServer::Impl {
                 std::lock_guard transition_lock(handshake_mutex);
                 std::shared_ptr<Session> s;
                 { std::lock_guard lock(mutex); if(!link_token || *link_token!=h->linkToken || game) return false; game=p; game_pid=h->processId; authenticated=true; s=active; }
-                if(s) { p->writer.send(caps(s->hello)); std::lock_guard lock(mutex); if(s->view) p->writer.send(*s->view); }
+                if(s) { std::lock_guard lock(mutex); p->writer.send(caps(s->hello,s->prefs)); if(s->view) p->writer.send(*s->view); }
                 return true;
             }
             if(std::holds_alternative<VideoFrame>(f.message)) {

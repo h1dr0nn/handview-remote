@@ -46,6 +46,8 @@ data class StreamConfigChanged(val width: Int, val height: Int, val orientation:
 data class StreamPaused(val reason: PauseReason) : Message
 data class Error(val source: ErrorSource, val code: ErrorCode) : Message
 data class FrameAck(val frameSeq: Long) : Message
+// The user's video choices; 0 means automatic.
+data class StreamPrefs(val maxLongSide: Int, val maxShortSide: Int, val maxFps: Int, val bitrateKbps: Long) : Message
 // Insets are the unsafe edges of the area (cutout, system bars), in its pixels.
 data class ViewSize(val width: Int, val height: Int, val safeLeft: Int = 0, val safeTop: Int = 0, val safeRight: Int = 0, val safeBottom: Int = 0) : Message
 data class Ping(val timeUs: Long) : Message
@@ -150,6 +152,13 @@ fun encode(message: Message): ByteArray {
         is FrameAck -> {
             w.u32(m.frameSeq)
             53
+        }
+        is StreamPrefs -> {
+            w.u16(m.maxLongSide)
+            w.u16(m.maxShortSide)
+            w.u8(m.maxFps)
+            w.u32(m.bitrateKbps)
+            55
         }
         is ViewSize -> {
             w.u16(m.width)
@@ -264,6 +273,7 @@ fun decode(data: ByteArray, offset: Int, size: Int, channel: Channel): DecodeRes
             51 -> StreamPaused(r.enumeration<PauseReason> { it.wire })
             52 -> Error(r.enumeration<ErrorSource> { it.wire }, r.enumeration<ErrorCode>(wide = true) { it.wire })
             53 -> FrameAck(r.u32())
+            55 -> StreamPrefs(r.u16(), r.u16(), r.u8(), r.u32())
             54 -> ViewSize(r.u16(), r.u16(), r.u16(), r.u16(), r.u16(), r.u16())
             64 -> Ping(r.u64())
             65 -> Pong(r.u64())

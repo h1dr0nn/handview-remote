@@ -205,14 +205,14 @@ fun SettingsScreen(settings: AppSettings, version: String, change: (AppSettings)
             ChoiceRow(stringResource(R.string.codec), stringResource(R.string.h264), open == "codec", listOf(stringResource(R.string.h264)), 0, soon = false, onToggle = { toggle("codec") }) {}
             GroupDivider()
             ChoiceRow(stringResource(R.string.resolution), stringResource(settings.resolution.label), open == "res",
-                Resolution.entries.map { stringResource(it.label) }, settings.resolution.ordinal, soon = true, onToggle = { toggle("res") }) { change(settings.copy(resolution = Resolution.entries[it])); open = null }
+                Resolution.entries.map { stringResource(it.label) }, settings.resolution.ordinal, soon = false, onToggle = { toggle("res") }) { change(settings.copy(resolution = Resolution.entries[it])); open = null }
             GroupDivider()
             ChoiceRow(stringResource(R.string.fps), settings.fps.toString(), open == "fps",
-                FpsOptions.map { it.toString() }, FpsOptions.indexOf(settings.fps), soon = true, onToggle = { toggle("fps") }) { change(settings.copy(fps = FpsOptions[it])); open = null }
+                FpsOptions.map { it.toString() }, FpsOptions.indexOf(settings.fps), soon = false, onToggle = { toggle("fps") }) { change(settings.copy(fps = FpsOptions[it])); open = null }
             GroupDivider()
             val bitrates = BitrateOptions.map { if (it == 0) stringResource(R.string.auto) else stringResource(R.string.mbps, it / 1000) }
             ChoiceRow(stringResource(R.string.bitrate), bitrates[BitrateOptions.indexOf(settings.bitrateKbps)], open == "bitrate",
-                bitrates, BitrateOptions.indexOf(settings.bitrateKbps), soon = true, onToggle = { toggle("bitrate") }) { change(settings.copy(bitrateKbps = BitrateOptions[it])); open = null }
+                bitrates, BitrateOptions.indexOf(settings.bitrateKbps), soon = false, onToggle = { toggle("bitrate") }) { change(settings.copy(bitrateKbps = BitrateOptions[it])); open = null }
         }
         SectionLabel(stringResource(R.string.input))
         Group {

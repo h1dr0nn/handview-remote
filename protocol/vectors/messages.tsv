@@ -14,6 +14,7 @@ stream_paused	control	ok	33000100000001
 error	control	ok	340003000000010300
 frame_ack	control	ok	350004000000ffffffff
 view_size	control	ok	36000c0000003804bc07000076000000a000
+stream_prefs	control	ok	3700090000000005d0021e401f0000
 ping	control	ok	4000080000001032547698badcfe
 pong	control	ok	410008000000efcdab8967452301
 bye	control	ok	f0000100000004
@@ -52,6 +53,8 @@ frame_ack_short	control	bad_size	350003000000ffffff
 frame_ack_long	control	bad_size	350005000000ffffffff00
 view_size_short	control	bad_size	36000b0000003804bc07000076000000a0
 view_size_long	control	bad_size	36000d0000003804bc07000076000000a00000
+stream_prefs_short	control	bad_size	3700080000000005d0021e401f00
+stream_prefs_long	control	bad_size	37000a0000000005d0021e401f000000
 ping_short	control	bad_size	4000070000001032547698badc
 ping_long	control	bad_size	4000090000001032547698badcfe00
 pong_short	control	bad_size	410007000000efcdab89674523

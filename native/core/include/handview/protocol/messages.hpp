@@ -132,6 +132,13 @@ struct ViewSize {
     std::uint16_t safeRight{};
     std::uint16_t safeBottom{};
 };
+// The user's video choices; 0 means automatic.
+struct StreamPrefs {
+    std::uint16_t maxLongSide{};
+    std::uint16_t maxShortSide{};
+    std::uint8_t maxFps{};
+    std::uint32_t bitrateKbps{};
+};
 struct Ping {
     std::uint64_t timeUs{};
 };
@@ -161,7 +168,7 @@ struct LinkStart {
 struct LinkStop {
 };
 struct Unknown { std::uint16_t type = 0; std::uint32_t length = 0; };
-using Message = std::variant<Hello, Welcome, Reject, VideoAttach, Command, CommandResult, EditorState, Touch, RequestKeyframe, DecoderStats, StreamConfigChanged, StreamPaused, Error, FrameAck, ViewSize, Ping, Pong, Bye, VideoFrame, LinkHello, LinkStart, LinkStop, Unknown>;
+using Message = std::variant<Hello, Welcome, Reject, VideoAttach, Command, CommandResult, EditorState, Touch, RequestKeyframe, DecoderStats, StreamConfigChanged, StreamPaused, Error, FrameAck, ViewSize, StreamPrefs, Ping, Pong, Bye, VideoFrame, LinkHello, LinkStart, LinkStop, Unknown>;
 enum class DecodeStatus { Ok, NeedMore, TooLarge, UnknownType, BadSize, BadEnum };
 // Incomplete or oversized input consumes zero bytes; complete messages consume their full frame.
 struct DecodeResult { DecodeStatus status; std::size_t consumed = 0; Message message{}; };
