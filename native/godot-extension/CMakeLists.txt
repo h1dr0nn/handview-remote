@@ -7,6 +7,8 @@ if(NOT EXISTS "${GODOT_CPP_DIR}/CMakeLists.txt")
 endif()
 
 # GODOTCPP_TARGET (template_debug | template_release) is a godot-cpp cache option.
+# godot-cpp headers are not /W4 clean; treat them as system headers.
+set(GODOTCPP_SYSTEM_HEADERS ON CACHE BOOL "" FORCE)
 add_subdirectory("${GODOT_CPP_DIR}" "${CMAKE_BINARY_DIR}/godot-cpp" EXCLUDE_FROM_ALL)
 
 add_library(handview_gdextension SHARED
