@@ -15,16 +15,16 @@ static func normalized_to_pixels(nx: float, ny: float, tex_size: Vector2) -> Vec
 	return Vector2(clampf(nx, 0.0, 1.0) * tex_size.x, clampf(ny, 0.0, 1.0) * tex_size.y)
 
 
-# Viewport texture pixels to window pixels. Identity when both sizes match,
-# otherwise the root window's final transform (stretch and canvas transform).
-static func texture_to_window(pos: Vector2, tex_size: Vector2, window_size: Vector2, final_transform: Transform2D) -> Vector2:
-	if tex_size == window_size:
-		return pos
-	return final_transform * pos
-
-
-static func map_point(nx: float, ny: float, tex_size: Vector2, window_size: Vector2, final_transform: Transform2D) -> Vector2:
-	return texture_to_window(normalized_to_pixels(nx, ny, tex_size), tex_size, window_size, final_transform)
+# Normalized 0..1 over the captured frame to window pixels, which is what
+# injected events use (Godot applies the inverse final transform itself).
+# With stretch mode "viewport" the frame is the viewport texture and the final
+# transform places it in the window (scale and letterbox offset). With
+# "canvas_items" or "disabled" the frame covers the whole window, whatever the
+# texture's own pixel size is.
+static func map_point(nx: float, ny: float, tex_size: Vector2, window_size: Vector2, final_transform: Transform2D, viewport_stretch: bool = false) -> Vector2:
+	if viewport_stretch:
+		return final_transform * normalized_to_pixels(nx, ny, tex_size)
+	return normalized_to_pixels(nx, ny, window_size)
 
 
 # Builds the input event for one touch record and keeps the per-index last

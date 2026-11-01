@@ -19,17 +19,23 @@ func test_identity_mapping() -> void:
 	var size: Vector2 = Vector2(1280, 720)
 	_near(Mapper.map_point(0.5, 0.25, size, size, Transform2D.IDENTITY), Vector2(640, 180), "center")
 	_near(Mapper.map_point(0.0, 1.0, size, size, Transform2D.IDENTITY), Vector2(0, 720), "corner")
-	# The transform is ignored when sizes match.
-	var scaled: Transform2D = Transform2D(0.0, Vector2(2, 2), 0.0, Vector2(10, 10))
-	_near(Mapper.map_point(0.5, 0.5, size, size, scaled), Vector2(640, 360), "identity wins")
 
 
-func test_scale_and_offset_mapping() -> void:
+func test_canvas_items_maps_to_window() -> void:
+	# canvas_items with a 540x1200 window over a 1080x2400 design size: the
+	# texture can be smaller than the window and the final transform scales by
+	# 0.5, but the frame still covers the whole window.
+	var xform: Transform2D = Transform2D(0.0, Vector2(0.5, 0.5), 0.0, Vector2.ZERO)
+	_near(Mapper.map_point(0.5, 0.5, Vector2(270, 600), Vector2(540, 1200), xform), Vector2(270, 600), "center")
+	_near(Mapper.map_point(1.0, 0.0, Vector2(270, 600), Vector2(540, 1200), xform), Vector2(540, 0), "corner")
+
+
+func test_viewport_stretch_uses_final_transform() -> void:
 	var tex: Vector2 = Vector2(1000, 500)
 	var window: Vector2 = Vector2(2000, 1100)
 	var xform: Transform2D = Transform2D(0.0, Vector2(2, 2), 0.0, Vector2(0, 50))
-	_near(Mapper.map_point(0.5, 0.5, tex, window, xform), Vector2(1000, 550), "scale+offset center")
-	_near(Mapper.map_point(1.0, 1.0, tex, window, xform), Vector2(2000, 1050), "scale+offset corner")
+	_near(Mapper.map_point(0.5, 0.5, tex, window, xform, true), Vector2(1000, 550), "scale+offset center")
+	_near(Mapper.map_point(1.0, 1.0, tex, window, xform, true), Vector2(2000, 1050), "scale+offset corner")
 
 
 func test_out_of_range_is_clamped() -> void:

@@ -82,8 +82,9 @@ func _inject_touches() -> void:
 	var tex_size: Vector2 = Vector2(root.get_texture().get_size())
 	var window_size: Vector2 = Vector2(root.size)
 	var final_xform: Transform2D = root.get_final_transform()
+	var viewport_stretch: bool = root.content_scale_mode == Window.CONTENT_SCALE_MODE_VIEWPORT
 	for touch: Dictionary in touches:
-		var pos: Vector2 = Mapper.map_point(float(touch["x"]), float(touch["y"]), tex_size, window_size, final_xform)
+		var pos: Vector2 = Mapper.map_point(float(touch["x"]), float(touch["y"]), tex_size, window_size, final_xform, viewport_stretch)
 		var event: InputEvent = Mapper.make_event(int(touch["id"]), int(touch["phase"]), pos, float(touch["pressure"]), _last_positions)
 		if event != null:
 			Input.parse_input_event(event)
