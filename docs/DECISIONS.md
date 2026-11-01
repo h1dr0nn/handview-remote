@@ -8,7 +8,7 @@ Decisions taken during implementation where the brief or the design docs left a 
 
 ## D2. M0 commits stay as pushed
 
-The first six commits on `main` predate the commit convention (Conventional Commits) and were pushed on request. Rewriting them would need a force push to a public branch, which cannot be undone safely. From `chore: set license copyright holder to h1dr0n` on, every commit follows Conventional Commits and work stays local until the owner asks for a push. Status: final.
+The first commits on `main` predated the commit convention. On the owner's request their messages were rewritten to Conventional Commits with `git commit-tree` (same trees, authors and dates). The pushed copy on `origin/main` still has the old messages until the owner force pushes; the old history is kept locally in `backup/pre-reword`. Work stays local until the owner asks for a push. Status: final.
 
 ## D3. Android minSdk 26
 
