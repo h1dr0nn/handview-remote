@@ -330,8 +330,9 @@ bool StreamController::wants_frame(std::uint64_t now) {
     std::lock_guard lock(impl_->mutex);
     if (!impl_->streaming || impl_->pending || impl_->encoding || !impl_->inflight.can_encode()) return false;
     const std::uint64_t interval = 1000000u / impl_->fps;
-    // 1 ms slack so a capture loop running at exactly the target rate is not skipped.
-    if (impl_->last_capture_us != 0 && now - impl_->last_capture_us + 1000u < interval) return false;
+    // The engine already paces itself near the target rate; this only stops a
+    // much faster game from capturing every frame, so frame jitter is tolerated.
+    if (impl_->last_capture_us != 0 && now - impl_->last_capture_us < interval * 3 / 4) return false;
     impl_->last_capture_us = now;
     return true;
 }
