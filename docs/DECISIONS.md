@@ -73,4 +73,4 @@ On Godot 4.7.2, a project's very first editor run that exits immediately (`--imp
 
 ## D11. Versioning
 
-SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish (first production release) at `1.0.0`. CHANGELOG follows Keep a Changelog. Status: final.
+SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish ends at `0.3.0`. `1.0.0` is cut only after the owner publishes the app (owner decision, 2026-11-02). CHANGELOG follows Keep a Changelog. Status: final.

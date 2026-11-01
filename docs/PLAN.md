@@ -48,7 +48,7 @@ Goal: the vertical slice. USB Launch, handshake, Play from the phone, capture, H
 
 Done when: T12 works in both orientations on both encoder backends, all tests pass, `v0.2.0` tagged.
 
-## Phase 3. Polish (v1.0.0)
+## Phase 3. Polish (v0.3.0)
 
 Goal: production quality and release packaging.
 
@@ -61,4 +61,4 @@ Goal: production quality and release packaging.
 | P5 | README (install, requirements, limits, troubleshooting), CHANGELOG, compatibility and latency table | agy draft, Claude final | P2 |
 | P6 | Final review | agy + Claude | all |
 
-Done when: Definition of Done of the brief holds, `v1.0.0` tagged.
+Done when: Definition of Done of the brief holds, `v0.3.0` tagged. `v1.0.0` waits for the owner to publish.
