@@ -1,0 +1,33 @@
+# Native build output
+native/build/
+native/out/
+native/bin/
+native/CMakeUserPresets.json
+
+# GDExtension binaries are built by CI or locally, not committed
+godot-addon/addons/handview/bin/*
+!godot-addon/addons/handview/bin/.gitkeep
+
+# Bundled APK is copied in at packaging time
+godot-addon/addons/handview/android/*.apk
+
+# Godot
+.godot/
+
+# Android / Gradle
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+android-app/.idea/
+android-app/.kotlin/
+*.iml
+*.keystore
+*.jks
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
