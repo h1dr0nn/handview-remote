@@ -27,6 +27,7 @@ const ENV_LINK_PORT: String = "HANDVIEW_LINK_PORT"
 const ENV_LINK_TOKEN: String = "HANDVIEW_LINK_TOKEN"
 const ENV_HIDE_WINDOW: String = "HANDVIEW_HIDE_WINDOW"
 const ENV_LOOPBACK_FILE: String = "HANDVIEW_LOOPBACK_FILE"
+const ENV_LOOPBACK_AUTOSTART: String = "HANDVIEW_LOOPBACK_AUTOSTART"
 
 var devices: Array = []
 var adb_found: bool = true
@@ -79,6 +80,9 @@ func start() -> void:
 	_spawn(_task_cleanup_stale.bind(_find_adb()))
 	refresh_devices()
 	state_changed.emit()
+	# Test hook for automated end-to-end runs with tools/mock-client.
+	if OS.has_environment(ENV_LOOPBACK_FILE) and OS.get_environment(ENV_LOOPBACK_AUTOSTART) == "1":
+		start_session_for(Logic.LOOPBACK_SERIAL)
 
 
 # Stops everything and clears what this controller changed. Blocks briefly (exit path).
