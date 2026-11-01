@@ -32,6 +32,9 @@ const BITRATE_MIN_KBPS: int = 2000
 const BITRATE_MAX_KBPS: int = 20000
 const DEFAULT_FPS: int = 60
 
+const LAUNCH_TIMEOUT_SEC: float = 20.0
+const LAUNCH_TIMEOUT_MESSAGE: String = "The phone did not connect. Check the phone screen and press Start Session again."
+
 const SDK_HINT: String = "Set the Android SDK path in Editor Settings > Export > Android, or add adb to PATH."
 
 
@@ -173,6 +176,21 @@ static func preselect_index(devices: Array, remembered: String) -> int:
 	if devices.size() == 1:
 		return 0
 	return -1
+
+
+# True when the launched app had LAUNCH_TIMEOUT_SEC to connect and did not.
+static func launch_wait_expired(awaiting_phone: bool, elapsed_sec: float) -> bool:
+	return awaiting_phone and elapsed_sec >= LAUNCH_TIMEOUT_SEC
+
+
+# After a launch timeout the listener stops unless a phone is still connected to it.
+static func should_stop_listener_on_timeout(phone_connected: bool) -> bool:
+	return not phone_connected
+
+
+# `am start` can exit 0 and still print an error (bad activity, device not found).
+static func launch_failed(exit_code: int, output: String) -> bool:
+	return exit_code != 0 or output.to_lower().contains("error")
 
 
 static func session_ended_message(timed_out: bool) -> String:

@@ -78,7 +78,8 @@ func test_reverse_list_serial_format() -> void:
 	_eq(entries[0]["serial"], "R58M12ABCDE", "serial")
 	_eq(entries[0]["local"], 38500, "local 0")
 	_eq(entries[0]["remote"], 38500, "remote 0")
-	_eq(entries[1]["remote"], 9000, "remote 1")
+	_eq(entries[1]["remote"], 38502, "remote 1 is the device side")
+	_eq(entries[1]["local"], 9000, "local 1 is the PC side")
 
 
 func test_reverse_list_reverse_format() -> void:
@@ -87,6 +88,9 @@ func test_reverse_list_reverse_format() -> void:
 	_eq(entries.size(), 2, "count")
 	_eq(entries[0]["local"], 38501, "local 0")
 	_eq(entries[1]["remote"], 38505, "remote 1")
+	var mixed: Array = Parse.parse_reverse_list("(reverse) tcp:38503 tcp:7000\n")
+	_eq(mixed[0]["remote"], 38503, "mixed remote")
+	_eq(mixed[0]["local"], 7000, "mixed local")
 
 
 func test_reverse_list_empty_and_noise() -> void:

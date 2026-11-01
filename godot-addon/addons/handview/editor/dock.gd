@@ -28,6 +28,7 @@ func setup(controller: Controller) -> void:
 	_controller.devices_changed.connect(_rebuild_list)
 	_controller.state_changed.connect(_update)
 	_controller.uninstall_requested.connect(_on_uninstall_requested)
+	_controller.uninstall_cancelled.connect(_on_uninstall_cancelled)
 	_rebuild_list()
 	_update()
 
@@ -120,6 +121,10 @@ func _on_uninstall_requested(_serial: String, output: String) -> void:
 		+ output.strip_edges()
 	)
 	_dialog.popup_centered(Vector2i(480, 260))
+
+
+func _on_uninstall_cancelled() -> void:
+	_dialog.hide()
 
 
 func _update() -> void:

@@ -10,6 +10,7 @@ extends RefCounted
 signal devices_changed
 signal state_changed
 signal uninstall_requested(serial: String, output: String)
+signal uninstall_cancelled
 
 const Adb := preload("adb.gd")
 const Logic := preload("session_logic.gd")
@@ -54,6 +55,9 @@ var _active_serial: String = ""
 var _active_port: int = -1
 var _link_token_hex: String = ""
 var _pending_install: Dictionary = {}
+# Seconds since a successful launch while waiting for the phone. Negative = not running.
+var _launch_timer: float = -1.0
+var _is_shutdown: bool = false
 
 var _editor_state: int = Logic.STATE_STOPPED
 var _playing: bool = false
@@ -87,7 +91,11 @@ func start() -> void:
 
 # Stops everything and clears what this controller changed. Blocks briefly (exit path).
 func shutdown() -> void:
+	_is_shutdown = true
 	_generation += 1
+	_launch_timer = -1.0
+	_awaiting_phone = false
+	_clear_pending_install()
 	_embed.end_launch()
 	OS.unset_environment(ENV_HIDE_WINDOW)
 	_set_link_env(false)
@@ -151,6 +159,8 @@ func _find_adb() -> String:
 
 
 func _spawn(task: Callable) -> void:
+	if _is_shutdown:
+		return
 	_tasks.append(WorkerThreadPool.add_task(task, false, "Handview adb"))
 
 
@@ -167,6 +177,10 @@ func _reap_tasks() -> void:
 
 func process(delta: float) -> void:
 	_reap_tasks()
+	if _launch_timer >= 0.0:
+		_launch_timer += delta
+		if Logic.launch_wait_expired(_awaiting_phone, _launch_timer):
+			_on_launch_timeout()
 	if _hide_unset_pending:
 		_hide_unset_pending = false
 		OS.unset_environment(ENV_HIDE_WINDOW)
@@ -193,18 +207,22 @@ func refresh_devices() -> void:
 	if _refreshing or not _native_ok:
 		return
 	_refreshing = true
-	_spawn(_task_refresh.bind(_find_adb()))
+	_spawn(_task_refresh.bind(_find_adb(), _generation))
 
 
-func _task_refresh(adb_path: String) -> void:
+func _task_refresh(adb_path: String, gen: int) -> void:
 	var list: Array = []
 	if not adb_path.is_empty():
 		list = Adb.new(adb_path).list_devices()
-	_on_devices.call_deferred(list, not adb_path.is_empty())
+	_on_devices.call_deferred(list, not adb_path.is_empty(), gen)
 
 
-func _on_devices(list: Array, found: bool) -> void:
+func _on_devices(list: Array, found: bool, gen: int) -> void:
+	if _is_shutdown:
+		return
 	_refreshing = false
+	if gen != _generation:
+		return
 	adb_found = found
 	devices = Logic.merge_devices(list, OS.has_environment(ENV_LOOPBACK_FILE))
 	var known: bool = false
@@ -257,6 +275,8 @@ func stop_session() -> void:
 	_generation += 1
 	_busy = false
 	_awaiting_phone = false
+	_launch_timer = -1.0
+	_clear_pending_install()
 	var serial: String = _active_serial
 	var port: int = _active_port
 	if _native_ok and bool(_session.call("is_running")):
@@ -267,16 +287,26 @@ func stop_session() -> void:
 
 # Called by the dock after the uninstall ConfirmationDialog.
 func answer_uninstall(accepted: bool) -> void:
-	if _pending_install.is_empty():
+	if _pending_install.is_empty() or _is_shutdown:
 		return
 	var request: Dictionary = _pending_install
 	_pending_install = {}
+	if int(request["gen"]) != _generation:
+		return
 	if not accepted:
 		_busy = false
 		_set_status("Install cancelled. Uninstall the Handview app from the phone to continue.")
 		return
 	_set_status("Replacing the Handview app...")
 	_spawn(_task_prepare.bind(request["adb_path"], request["serial"], request["apk"], request["bundled"], request["port"], true, _generation))
+
+
+# Drops an open uninstall question and tells the dock to close its dialog.
+func _clear_pending_install() -> void:
+	if _pending_install.is_empty():
+		return
+	_pending_install = {}
+	uninstall_cancelled.emit()
 
 
 func _bundled_version() -> int:
@@ -316,7 +346,7 @@ func _task_prepare(adb_path: String, serial: String, apk_global: String, bundled
 		elif not apk_global.is_empty() and bundled >= 0 and installed < bundled:
 			need_install = true
 	if need_install:
-		_set_status.call_deferred("Installing the Handview app...")
+		_on_install_started.call_deferred(gen)
 		var installed_result: Dictionary = adb.install(serial, apk_global)
 		if not bool(installed_result["ok"]):
 			var output: String = str(installed_result["output"])
@@ -338,8 +368,14 @@ func _task_prepare(adb_path: String, serial: String, apk_global: String, bundled
 	_on_prepared.call_deferred(result)
 
 
+func _on_install_started(gen: int) -> void:
+	if _is_shutdown or gen != _generation:
+		return
+	_set_status("Installing the Handview app...")
+
+
 func _on_prepared(result: Dictionary) -> void:
-	if int(result["gen"]) != _generation:
+	if _is_shutdown or int(result["gen"]) != _generation:
 		return
 	if bool(result["confirm"]):
 		_pending_install = result
@@ -397,7 +433,7 @@ func _task_launch(adb_path: String, serial: String, port: int, token_hex: String
 		return
 	var launched: Dictionary = adb.launch(serial, token_hex, port)
 	var output: String = str(launched["output"])
-	if int(launched["exit_code"]) != 0 or output.contains("Error"):
+	if Logic.launch_failed(int(launched["exit_code"]), output):
 		adb.reverse_remove(serial, port)
 		result["message"] = "Starting the Handview app failed. adb output:\n" + output
 		_on_launched.call_deferred(result)
@@ -407,6 +443,8 @@ func _task_launch(adb_path: String, serial: String, port: int, token_hex: String
 
 
 func _on_launched(result: Dictionary) -> void:
+	if _is_shutdown:
+		return
 	if int(result["gen"]) != _generation:
 		# Stopped while launching: make sure no reverse is left behind.
 		if bool(result["ok"]):
@@ -414,14 +452,33 @@ func _on_launched(result: Dictionary) -> void:
 		return
 	_busy = false
 	if bool(result["ok"]):
-		_set_status("Waiting for the phone to connect...")
+		# The phone may have connected already while this result was queued.
+		if _awaiting_phone:
+			_launch_timer = 0.0
+			_set_status("Waiting for the phone to connect...")
 		return
 	if is_session_active():
 		_session.call("stop")
 	_awaiting_phone = false
+	_launch_timer = -1.0
 	_active_serial = ""
 	_active_port = -1
 	_set_status(str(result["message"]))
+
+
+# The launched app never connected: release what the launch took.
+func _on_launch_timeout() -> void:
+	var serial: String = _active_serial
+	var port: int = _active_port
+	_launch_timer = -1.0
+	_awaiting_phone = false
+	if Logic.should_stop_listener_on_timeout(_phone_connected) and is_session_active():
+		_session.call("stop")
+	_active_serial = ""
+	_active_port = -1
+	if not serial.is_empty():
+		_spawn(_task_remove_reverse.bind(_find_adb(), serial, port))
+	_set_status(Logic.LAUNCH_TIMEOUT_MESSAGE)
 
 
 func _start_loopback() -> void:
@@ -486,6 +543,7 @@ func _handle_event(event: Dictionary) -> void:
 	match str(event.get("type", "")):
 		"connected":
 			_awaiting_phone = false
+			_launch_timer = -1.0
 			_phone_connected = true
 			phone_info = event
 			_set_link_env(true)

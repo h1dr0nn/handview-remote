@@ -107,6 +107,8 @@ func _on_frame_post_draw() -> void:
 
 
 func _stop_runtime() -> void:
+	if RenderingServer.frame_post_draw.is_connected(_on_frame_post_draw):
+		RenderingServer.frame_post_draw.disconnect(_on_frame_post_draw)
 	if _runtime != null:
 		_runtime.call("stop")
 		_runtime = null

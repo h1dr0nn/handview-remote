@@ -126,3 +126,27 @@ func test_messages() -> void:
 	_eq(parsed["token"], "ab", "loopback token")
 	_eq(Logic.phone_line({"model": "Pixel", "screen_w": 1080, "screen_h": 2400}), "Phone: Pixel, 1080x2400", "phone line")
 	_eq(Logic.phone_line({}), "", "no phone")
+
+
+func test_launch_timeout() -> void:
+	_eq(Logic.LAUNCH_TIMEOUT_SEC, 20.0, "timeout constant")
+	_eq(Logic.launch_wait_expired(true, 19.9), false, "not yet")
+	_eq(Logic.launch_wait_expired(true, 20.0), true, "at limit")
+	_eq(Logic.launch_wait_expired(true, 45.0), true, "past limit")
+	_eq(Logic.launch_wait_expired(false, 45.0), false, "phone already connected")
+	_eq(Logic.should_stop_listener_on_timeout(false), true, "stop listener without phone")
+	_eq(Logic.should_stop_listener_on_timeout(true), false, "keep listener with phone")
+	_eq(
+		Logic.LAUNCH_TIMEOUT_MESSAGE,
+		"The phone did not connect. Check the phone screen and press Start Session again.",
+		"timeout message"
+	)
+
+
+func test_launch_failed() -> void:
+	_eq(Logic.launch_failed(0, "Starting: Intent { cmp=io.github.h1dr0nn.handview/.MainActivity }"), false, "ok")
+	_eq(Logic.launch_failed(0, "Starting: Intent { }\nWarning: Activity not started, its current task has been brought to the front"), false, "warning only")
+	_eq(Logic.launch_failed(1, ""), true, "exit code")
+	_eq(Logic.launch_failed(0, "Error: Activity class {io.github/.MainActivity} does not exist."), true, "Error prefix")
+	_eq(Logic.launch_failed(0, "error: device not found"), true, "lowercase error")
+	_eq(Logic.launch_failed(0, "ERROR: closed"), true, "uppercase error")

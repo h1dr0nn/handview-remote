@@ -122,7 +122,7 @@ func reverse_remove(serial: String, port: int) -> void:
 	_run_for(serial, PackedStringArray(["reverse", "--remove", "tcp:%d" % port]))
 
 
-# Local tcp ports that map to the identical remote port.
+# Ports reversed with the same number on the device and the PC.
 func reverse_list(serial: String) -> PackedInt32Array:
 	var ports: PackedInt32Array = PackedInt32Array()
 	var res: Dictionary = _run_for(serial, PackedStringArray(["reverse", "--list"]))

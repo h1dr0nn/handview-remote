@@ -68,15 +68,16 @@ static func _tcp_port(token: String) -> int:
 	return digits.to_int()
 
 
-# Parses `adb reverse --list`. Returns Array of {serial, local, remote}, tcp entries only.
+# Parses `adb reverse --list`, lines `<prefix> <remote> <local>` (remote is the device side,
+# local the PC side). Returns Array of {serial, local, remote}, tcp entries only.
 static func parse_reverse_list(output: String) -> Array:
 	var result: Array = []
 	for raw_line: String in output.replace("\r", "").split("\n"):
 		var parts: PackedStringArray = _tokens(raw_line)
 		if parts.size() != 3:
 			continue
-		var local_port: int = _tcp_port(parts[1])
-		var remote_port: int = _tcp_port(parts[2])
+		var remote_port: int = _tcp_port(parts[1])
+		var local_port: int = _tcp_port(parts[2])
 		if local_port < 0 or remote_port < 0:
 			continue
 		var serial: String = parts[0]
