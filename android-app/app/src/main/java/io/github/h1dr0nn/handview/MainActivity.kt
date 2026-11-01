@@ -13,14 +13,15 @@ import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import io.github.h1dr0nn.handview.client.*
 import io.github.h1dr0nn.handview.protocol.*
 import kotlinx.coroutines.flow.MutableStateFlow
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), Actions {
     private val state = MutableStateFlow(CastState())
+    private val app = MutableStateFlow(AppState())
+    private lateinit var store: SettingsStore
     private val main = Handler(Looper.getMainLooper())
     private val latency = LatencyTracker()
     private var client: SessionClient? = null
@@ -50,10 +51,14 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         main.post(refresh)
+        store = SettingsStore(this)
+        app.value = AppState(settings = store.load(), recents = store.recents())
+        orient(Orientation.Portrait)
         setContent {
             val ui by state.collectAsState()
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                HandviewScreen(ui, ::command, ::disconnect, ::surfaceView)
+            val screens by app.collectAsState()
+            HandviewTheme {
+                HandviewScreen(ui, screens, this)
             }
         }
         if (savedInstanceState == null || intent.hasExtra("token")) launch(intent)
@@ -114,6 +119,7 @@ class MainActivity : ComponentActivity() {
         when (event) {
             is SessionClient.Event.Connected -> {
                 val w = event.welcome
+                app.value = app.value.copy(recents = store.remember(RecentEditor(w.host, w.encoder, w.width, w.height, System.currentTimeMillis())))
                 state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
             }
@@ -151,12 +157,19 @@ class MainActivity : ComponentActivity() {
     private fun orient(value: Orientation) {
         requestedOrientation = if (value == Orientation.Landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
-    private fun command(cmd: Cmd) { client?.sendCommand(cmd) }
-    private fun end(message: Int) { disconnect(); state.value = CastState(message = message) }
-    private fun disconnect() {
+    override fun command(cmd: Cmd) { client?.sendCommand(cmd) }
+    override fun open(screen: Screen) { app.value = app.value.copy(screen = screen, notice = null); state.value = state.value.copy(message = null) }
+    override fun wifiNotReady() { app.value = app.value.copy(screen = Screen.Home, notice = R.string.wifi_not_ready) }
+    override fun change(settings: AppSettings) { store.save(settings); app.value = app.value.copy(settings = settings) }
+    override val version: String get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
+    override fun surface(): SurfaceView = surfaceView()
+    // A session that ends lands on the USB screen, which shows why it ended.
+    private fun end(message: Int) { disconnect(); state.value = CastState(message = message); app.value = app.value.copy(screen = Screen.Usb) }
+    override fun disconnect() {
         generation++; decoder?.close(); decoder = null
         client?.close(ByeReason.Normal); client = null; token = null
         latency.clear(); touchReady = false; state.value = CastState()
+        orient(Orientation.Portrait)
     }
     private fun surfaceView(): SurfaceView = SurfaceView(this).apply {
         holder.addCallback(object : SurfaceHolder.Callback {
@@ -165,7 +178,7 @@ class MainActivity : ComponentActivity() {
             override fun surfaceDestroyed(holder: SurfaceHolder) { decoder?.setSurface(null) }
         })
         setOnTouchListener { view, motion ->
-            if (touchReady && renderedStream == stream && state.value.editor == EditorStateValue.Playing && motion.pointerCount in 1..10) {
+            if (app.value.settings.touch && touchReady && renderedStream == stream && state.value.editor == EditorStateValue.Playing && motion.pointerCount in 1..10) {
                 val ui = state.value
                 val pointers = (0 until motion.pointerCount).map { i ->
                     val phase = when (motion.actionMasked) {

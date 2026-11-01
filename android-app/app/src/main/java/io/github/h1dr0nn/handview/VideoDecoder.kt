@@ -6,10 +6,12 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.SystemClock
 import android.view.Surface
 import io.github.h1dr0nn.handview.client.*
 import io.github.h1dr0nn.handview.protocol.*
 import java.nio.ByteBuffer
+import kotlin.math.abs
 
 class VideoDecoder(
     private val client: SessionClient,
@@ -128,9 +130,18 @@ class VideoDecoder(
         }, handler)
         candidate.setOnFrameRenderedListener({ c, pts, nanoTime ->
             if (c === codec) displaying.remove(pts)?.let {
-                rendered(stream, it.touch, nanoTime)
+                rendered(stream, it.touch, monotonic(nanoTime))
             }
         }, handler)
+    }
+    // The render time should use System.nanoTime(), but some decoders (Exynos on
+    // Pixel) report CLOCK_BOOTTIME, which runs ahead by the time spent asleep.
+    // Touch times use the monotonic clock, so map the render time onto it.
+    private fun monotonic(renderNanos: Long): Long {
+        val now = System.nanoTime()
+        if (abs(renderNanos - now) < 1_000_000_000L) return renderNanos
+        val boot = SystemClock.elapsedRealtimeNanos()
+        return if (abs(renderNanos - boot) < 1_000_000_000L) renderNanos - (boot - now) else now
     }
     private fun feed() {
         if (!configured || surface == null) return
