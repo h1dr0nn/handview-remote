@@ -284,6 +284,11 @@ void EditorServer::editor_state(EditorStateValue state) {
     { std::lock_guard lock(impl_->mutex); impl_->config.host.editorState=state; }
     impl_->send_app(EditorState{state});
 }
+void EditorServer::set_stream_info(Encoder encoder,std::uint16_t width,std::uint16_t height,Orientation orientation,std::uint8_t fps,std::uint32_t bitrate_kbps) {
+    std::lock_guard lock(impl_->mutex);
+    auto& host=impl_->config.host;
+    host.encoder=encoder; host.width=width; host.height=height; host.orientation=orientation; host.fps=fps; host.bitrateKbps=bitrate_kbps;
+}
 void EditorServer::stream_paused(PauseReason reason) { impl_->send_app(StreamPaused{reason}); }
 void EditorServer::error(ErrorSource source,ErrorCode code) { impl_->send_app(Error{source,code}); }
 }

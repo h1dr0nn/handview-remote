@@ -61,6 +61,9 @@ public:
     std::optional<SessionEvent> poll_event();
     void command_result(protocol::Cmd cmd, protocol::Result result, protocol::EditorStateValue state);
     void editor_state(protocol::EditorStateValue state);
+    // Welcome fields for the next session; also the fps and bitrate sent in LinkStart.
+    void set_stream_info(protocol::Encoder encoder, std::uint16_t width, std::uint16_t height,
+                         protocol::Orientation orientation, std::uint8_t fps, std::uint32_t bitrate_kbps);
     void stream_paused(protocol::PauseReason reason);
     void error(protocol::ErrorSource source, protocol::ErrorCode code);
 private:
