@@ -137,7 +137,10 @@ class SessionClient(
     fun sendCommand(cmd: Cmd) = send(Command(cmd))
     fun sendTouch(seq: Long, eventTimeUs: Long, pointers: List<Pointer>) = send(Touch(seq, eventTimeUs, pointers))
     fun sendFrameAck(seq: Long) = send(FrameAck(seq))
-    fun sendViewSize(width: Int, height: Int) = send(ViewSize(width.coerceIn(0, 65535), height.coerceIn(0, 65535)))
+    fun sendViewSize(view: ViewSize) = send(ViewSize(
+        view.width.coerceIn(0, 65535), view.height.coerceIn(0, 65535),
+        view.safeLeft.coerceIn(0, 65535), view.safeTop.coerceIn(0, 65535), view.safeRight.coerceIn(0, 65535), view.safeBottom.coerceIn(0, 65535),
+    ))
     fun sendDecoderStats(pending: Int, dropped: Int) = send(DecoderStats(pending.coerceIn(0, 65535), dropped.coerceIn(0, 65535)))
     fun requestKeyframe() = send(RequestKeyframe)
     fun sendError(source: ErrorSource, code: ErrorCode) = send(io.github.h1dr0nn.handview.protocol.Error(source, code))

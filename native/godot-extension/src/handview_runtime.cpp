@@ -106,6 +106,10 @@ Dictionary HandviewRuntime::get_status() const {
     result["last_error"] = String::utf8(status.last_error.c_str());
     result["view_width"] = status.view_width;
     result["view_height"] = status.view_height;
+    result["safe_left"] = status.safe_left;
+    result["safe_top"] = status.safe_top;
+    result["safe_right"] = status.safe_right;
+    result["safe_bottom"] = status.safe_bottom;
     return result;
 }
 

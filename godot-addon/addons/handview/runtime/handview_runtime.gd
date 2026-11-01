@@ -6,6 +6,9 @@ extends Node
 
 const Mapper := preload("touch_mapper.gd")
 
+# Emitted when the phone's safe area changes (rotation, Full Screen). See get_safe_area().
+signal safe_area_changed(rect: Rect2i)
+
 const HIDDEN_POSITION: Vector2i = Vector2i(-32000, -32000)
 const IDLE_FPS: int = 60
 const STATUS_INTERVAL_FRAMES: int = 10
@@ -30,6 +33,8 @@ var _capture_once: bool = false
 var _fit_window: bool = false
 var _base_size: Vector2i = Vector2i.ZERO
 var _applied_view: Vector2i = Vector2i.ZERO
+var _applied_insets: Vector4i = Vector4i.ZERO
+var _safe_area: Rect2i = Rect2i()
 
 
 func _ready() -> void:
@@ -75,7 +80,10 @@ func _process(_delta: float) -> void:
 	if _frame_counter % STATUS_INTERVAL_FRAMES == 1:
 		var status: Dictionary = _runtime.call("get_status")
 		_streaming = bool(status.get("streaming", false))
-		_fit_to_view(Vector2i(int(status.get("view_width", 0)), int(status.get("view_height", 0))))
+		_fit_to_view(
+			Vector2i(int(status.get("view_width", 0)), int(status.get("view_height", 0))),
+			Vector4i(int(status.get("safe_left", 0)), int(status.get("safe_top", 0)), int(status.get("safe_right", 0)), int(status.get("safe_bottom", 0)))
+		)
 	var fps: int = maxi(1, int(_runtime.call("get_target_fps"))) if _streaming else IDLE_FPS
 	if fps != _applied_fps:
 		_applied_fps = fps
@@ -83,11 +91,42 @@ func _process(_delta: float) -> void:
 	_inject_touches()
 
 
-func _fit_to_view(view: Vector2i) -> void:
-	if not _fit_window or view.x <= 0 or view.y <= 0 or view == _applied_view:
+# The usable part of the game window while a phone shows it, in window
+# pixels like DisplayServer.get_display_safe_area(). Use this instead of
+# DisplayServer in a game that runs under Handview: the editor's desktop has
+# no notch, the phone does. Outside a phone play it returns the DisplayServer
+# value.
+func get_safe_area() -> Rect2i:
+	if _safe_area.has_area():
+		return _safe_area
+	return DisplayServer.get_display_safe_area()
+
+
+func _fit_to_view(view: Vector2i, insets: Vector4i) -> void:
+	if not _fit_window or view.x <= 0 or view.y <= 0 or (view == _applied_view and insets == _applied_insets):
 		return
+	var size: Vector2i = fit_size(_base_size, view)
+	if view != _applied_view:
+		DisplayServer.window_set_size(size)
 	_applied_view = view
-	DisplayServer.window_set_size(fit_size(_base_size, view))
+	_applied_insets = insets
+	var safe: Rect2i = safe_rect(size, view, insets)
+	if safe != _safe_area:
+		_safe_area = safe
+		safe_area_changed.emit(safe)
+
+
+# Insets given in the phone's view pixels, scaled to a window of `size`.
+static func safe_rect(size: Vector2i, view: Vector2i, insets: Vector4i) -> Rect2i:
+	if view.x <= 0 or view.y <= 0:
+		return Rect2i(Vector2i.ZERO, size)
+	var sx: float = float(size.x) / view.x
+	var sy: float = float(size.y) / view.y
+	var left: int = roundi(insets.x * sx)
+	var top: int = roundi(insets.y * sy)
+	var right: int = roundi(insets.z * sx)
+	var bottom: int = roundi(insets.w * sy)
+	return Rect2i(left, top, maxi(0, size.x - left - right), maxi(0, size.y - top - bottom))
 
 
 # Window size with the view's aspect ratio: a tall view keeps the base width,

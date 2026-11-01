@@ -126,6 +126,11 @@ struct FrameAck {
 struct ViewSize {
     std::uint16_t width{};
     std::uint16_t height{};
+    // Unsafe edges of the area (cutout, system bars), in its pixels.
+    std::uint16_t safeLeft{};
+    std::uint16_t safeTop{};
+    std::uint16_t safeRight{};
+    std::uint16_t safeBottom{};
 };
 struct Ping {
     std::uint64_t timeUs{};

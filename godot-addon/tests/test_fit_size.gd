@@ -21,3 +21,9 @@ func test_wide_view_keeps_height() -> void:
 
 func test_invalid_view_keeps_base() -> void:
 	_eq(Runtime.fit_size(Vector2i(540, 1200), Vector2i(0, 0)), Vector2i(540, 1200), "no view")
+
+
+func test_safe_rect_scales_insets() -> void:
+	# 1080x2400 phone with a 118 px cutout and 63 px bottom bar, window 540x1200.
+	_eq(Runtime.safe_rect(Vector2i(540, 1200), Vector2i(1080, 2400), Vector4i(0, 118, 0, 63)), Rect2i(0, 59, 540, 1109), "portrait insets")
+	_eq(Runtime.safe_rect(Vector2i(540, 990), Vector2i(1080, 1980), Vector4i.ZERO), Rect2i(0, 0, 540, 990), "no insets")

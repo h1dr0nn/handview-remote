@@ -139,6 +139,10 @@ std::vector<std::uint8_t> encode(const Message& message) {
             type = 54;
             w.u16(m.width);
             w.u16(m.height);
+            w.u16(m.safeLeft);
+            w.u16(m.safeTop);
+            w.u16(m.safeRight);
+            w.u16(m.safeBottom);
         }
         if constexpr (std::is_same_v<T, Ping>) {
             type = 64;
@@ -312,6 +316,10 @@ DecodeResult decode(const std::uint8_t* data, std::size_t size, Channel channel)
         ViewSize m;
         m.width = r.u16();
         m.height = r.u16();
+        m.safeLeft = r.u16();
+        m.safeTop = r.u16();
+        m.safeRight = r.u16();
+        m.safeBottom = r.u16();
         message = std::move(m); break;
     }
     case 64: {

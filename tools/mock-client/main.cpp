@@ -100,7 +100,7 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
             // --view WxH: send ViewSize like the app's video area.
             if(args.has("--view")) {
                 auto [viewW,viewH]=testtool::size(args.get("--view"));
-                send(ViewSize {static_cast<std::uint16_t>(viewW),static_cast<std::uint16_t>(viewH)});
+                send(ViewSize {static_cast<std::uint16_t>(viewW),static_cast<std::uint16_t>(viewH),0,0,0,0});
             }
             maybePlay();
         }

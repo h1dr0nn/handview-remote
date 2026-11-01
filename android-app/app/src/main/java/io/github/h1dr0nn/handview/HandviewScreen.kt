@@ -17,7 +17,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -55,8 +59,8 @@ interface Actions {
     fun command(cmd: Cmd)
     fun disconnect()
     fun fullScreen(on: Boolean)
-    // Size in pixels of the area the video is shown in (ViewSize).
-    fun viewSize(width: Int, height: Int)
+    // The area the video is shown in, with its unsafe edges (ViewSize).
+    fun viewSize(view: ViewSize)
     fun connectTo(offer: SessionOffer)
     fun open(screen: Screen)
     fun wifiNotReady()
@@ -141,7 +145,7 @@ private fun CastPortrait(ui: CastState, actions: Actions) {
         Stage(ui, actions, Modifier.weight(1f).fillMaxWidth())
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp).height(56.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.weight(1f).fillMaxHeight()) }
-            FullScreenTile(actions, Modifier.width(48.dp).fillMaxHeight())
+            FullScreenTile(ui, actions, Modifier.width(48.dp).fillMaxHeight())
             DisconnectTile(actions, Modifier.width(48.dp).fillMaxHeight())
         }
     }
@@ -157,7 +161,7 @@ private fun CastLandscape(ui: CastState, actions: Actions) {
         }
         Column(Modifier.width(80.dp).fillMaxHeight().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.fillMaxWidth().weight(1f)) }
-            FullScreenTile(actions, Modifier.fillMaxWidth().height(44.dp))
+            FullScreenTile(ui, actions, Modifier.fillMaxWidth().height(44.dp))
             DisconnectTile(actions, Modifier.fillMaxWidth().height(44.dp))
         }
     }
@@ -183,10 +187,12 @@ private fun ControlTile(control: Control, ui: CastState, actions: Actions, modif
 }
 
 @Composable
-private fun FullScreenTile(actions: Actions, modifier: Modifier) {
+private fun FullScreenTile(ui: CastState, actions: Actions, modifier: Modifier) {
     val label = stringResource(R.string.full_screen)
+    val on = ui.editor != EditorStateValue.Stopped
     Box(
-        modifier.clip(CardShape).background(Palette.Card).clickable(role = Role.Button, onClickLabel = label) { actions.fullScreen(true) },
+        modifier.alpha(if (on) 1f else 0.4f).clip(CardShape).background(Palette.Card)
+            .clickable(enabled = on, role = Role.Button, onClickLabel = label) { actions.fullScreen(true) },
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Expand, label, Modifier.size(20.dp), tint = Palette.Ink)
@@ -206,7 +212,22 @@ private fun DisconnectTile(actions: Actions, modifier: Modifier) {
 
 @Composable
 private fun Stage(ui: CastState, actions: Actions, modifier: Modifier) {
-    BoxWithConstraints(modifier.background(Palette.Stage).onSizeChanged { actions.viewSize(it.width, it.height) }, contentAlignment = Alignment.Center) {
+    // Unsafe edges of the screen (cutout, bars) that fall inside the stage.
+    val safe = WindowInsets.safeDrawing
+    val density = LocalDensity.current
+    val window = LocalView.current.rootView
+    BoxWithConstraints(
+        modifier.background(Palette.Stage).onGloballyPositioned { c ->
+            val pos = c.positionInRoot()
+            val w = c.size.width; val h = c.size.height
+            val left = (safe.getLeft(density, LayoutDirection.Ltr) - pos.x.toInt()).coerceIn(0, w)
+            val top = (safe.getTop(density) - pos.y.toInt()).coerceIn(0, h)
+            val right = (safe.getRight(density, LayoutDirection.Ltr) - (window.width - pos.x.toInt() - w)).coerceIn(0, w)
+            val bottom = (safe.getBottom(density) - (window.height - pos.y.toInt() - h)).coerceIn(0, h)
+            actions.viewSize(ViewSize(w, h, left, top, right, bottom))
+        },
+        contentAlignment = Alignment.Center,
+    ) {
         val screen = LocalConfiguration.current
         val ratio = if (ui.width > 0 && ui.height > 0) ui.width.toFloat() / ui.height else screen.screenWidthDp.coerceAtLeast(1).toFloat() / screen.screenHeightDp.coerceAtLeast(1)
         // Before a stream there is no picture to letterbox: fill the stage.

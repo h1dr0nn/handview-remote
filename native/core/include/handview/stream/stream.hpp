@@ -43,6 +43,7 @@ struct StreamStatus {
     // The phone's video area (ViewSize), 0 x 0 until the phone sent one.
     std::uint16_t view_width = 0;
     std::uint16_t view_height = 0;
+    std::uint16_t safe_left = 0, safe_top = 0, safe_right = 0, safe_bottom = 0;
 };
 
 class StreamController {

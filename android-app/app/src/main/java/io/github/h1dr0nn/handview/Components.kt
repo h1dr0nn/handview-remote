@@ -40,11 +40,13 @@ const val HeaderButtonGap = 8
 // buttons: font size and line height both equal the button size.
 @Composable
 fun Wordmark(text: String, modifier: Modifier = Modifier) {
-    val size = with(LocalDensity.current) { HeaderButtonSize.toSp() }
+    // A touch under the box height so the letters sit inside the buttons' outline.
+    val size = with(LocalDensity.current) { (HeaderButtonSize * 0.9f).toSp() }
+    val line = with(LocalDensity.current) { HeaderButtonSize.toSp() }
     Text(
         text, modifier.height(HeaderButtonSize), maxLines = 1, softWrap = false, color = Palette.Ink,
         style = Type.Wordmark.copy(
-            fontSize = size, lineHeight = size,
+            fontSize = size, lineHeight = line,
             lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
             platformStyle = PlatformTextStyle(includeFontPadding = false),
         ),

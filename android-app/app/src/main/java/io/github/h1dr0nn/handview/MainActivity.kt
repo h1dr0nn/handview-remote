@@ -30,14 +30,14 @@ class MainActivity : ComponentActivity(), Actions {
     @Volatile private var decoder: VideoDecoder? = null
     private var token: String? = null
     private var port = 0
-    // Offers connect on their own while the app is in front, except right after
-    // the user left a session; that pause ends when the app goes to the background.
-    private var autoConnect = true
+    // The app opens on Home and joins only when the user taps a project. Offers
+    // connect on their own only to rejoin a session that dropped unexpectedly
+    // (cable, editor restart), and only with Auto Reconnect on.
+    private var autoConnect = false
     private var resumed = false
     private var lastTried: String? = null
-    private var viewWidth = 0
+    private var view = ViewSize(0, 0)
     private var activeHolder: SurfaceHolder? = null
-    private var viewHeight = 0
     @Volatile private var generation = 0
     private var touchSeq = 0L
     private var touchReady = false
@@ -84,7 +84,6 @@ class MainActivity : ComponentActivity(), Actions {
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); launch(intent) }
     override fun onResume() { super.onResume(); resumed = true; maybeAutoConnect() }
     override fun onPause() { resumed = false; super.onPause() }
-    override fun onStop() { autoConnect = true; super.onStop() }
     private fun launch(intent: Intent) {
         val next = intent.getStringExtra("token")
         intent.removeExtra("token")
@@ -99,12 +98,12 @@ class MainActivity : ComponentActivity(), Actions {
         connect(offer.token, offer.port)
     }
     override fun fullScreen(on: Boolean) { state.value = state.value.copy(fullScreen = on) }
-    override fun viewSize(width: Int, height: Int) {
-        if (width == viewWidth && height == viewHeight) return
-        viewWidth = width; viewHeight = height
-        client?.sendViewSize(width, height)
+    override fun viewSize(view: ViewSize) {
+        if (view == this.view) return
+        this.view = view
+        client?.sendViewSize(view)
     }
-    override fun connectTo(offer: SessionOffer) { autoConnect = true; lastTried = offer.token; connect(offer.token, offer.port) }
+    override fun connectTo(offer: SessionOffer) { lastTried = offer.token; connect(offer.token, offer.port) }
     private fun connect(next: String, port: Int) {
         if (next == token) return
         closeSession()
@@ -157,7 +156,7 @@ class MainActivity : ComponentActivity(), Actions {
             is SessionClient.Event.Connected -> {
                 val w = event.welcome
                 // The stage may have been measured before the session existed.
-                if (viewWidth > 0 && viewHeight > 0) client?.sendViewSize(viewWidth, viewHeight)
+                if (view.width > 0 && view.height > 0) client?.sendViewSize(view)
                 state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
             }
@@ -170,7 +169,7 @@ class MainActivity : ComponentActivity(), Actions {
             // Never got a Welcome: the editor behind this offer is gone.
             is SessionClient.Event.Disconnected -> if (state.value.welcome == null && event.reason == SessionClient.DisconnectReason.IoError) {
                 SessionOffers.remove(this, port); end(R.string.editor_unreachable)
-            } else end(when (val reason = event.reason) {
+            } else end(rejoin = (event.reason as? SessionClient.DisconnectReason.Remote)?.reason != ByeReason.Replaced, message = when (val reason = event.reason) {
                 SessionClient.DisconnectReason.Timeout -> R.string.ended_timeout
                 SessionClient.DisconnectReason.ProtocolError -> R.string.ended_protocol
                 SessionClient.DisconnectReason.IoError -> R.string.ended_connection
@@ -193,6 +192,9 @@ class MainActivity : ComponentActivity(), Actions {
                 is StreamPaused -> { touchReady = false; state.value = state.value.copy(editor = if (m.reason == PauseReason.Paused) EditorStateValue.Paused else EditorStateValue.Stopped) }
                 is io.github.h1dr0nn.handview.protocol.Error -> state.value = state.value.copy(message = R.string.stream_error)
                 else -> Unit
+            }.also {
+                // Full Screen only shows a running game.
+                if (state.value.fullScreen && state.value.editor == EditorStateValue.Stopped) state.value = state.value.copy(fullScreen = false)
             }
         }
     }
@@ -212,7 +214,13 @@ class MainActivity : ComponentActivity(), Actions {
     override val version: String get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
     override fun surface(): SurfaceView = surfaceView()
     // A session that ends lands on Home, which shows why it ended.
-    private fun end(message: Int) { closeSession(); app.value = app.value.copy(screen = Screen.Home, notice = message) }
+    private fun end(message: Int, rejoin: Boolean = false) {
+        val wasConnected = state.value.welcome != null
+        closeSession()
+        autoConnect = rejoin && wasConnected
+        lastTried = null
+        app.value = app.value.copy(screen = Screen.Home, notice = message)
+    }
     override fun disconnect() { autoConnect = false; closeSession(); app.value = app.value.copy(screen = Screen.Home, notice = null) }
     private fun closeSession() {
         generation++; decoder?.close(); decoder = null
