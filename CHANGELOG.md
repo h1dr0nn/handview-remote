@@ -4,10 +4,33 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-01
+
+Features: the full slice works end to end on the PC (Godot editor, hidden game, capture, H.264, relay, decoding client, touch back) with every encoder backend and both orientations. Verification on real phones is still pending.
+
 ### Added
 
 - CI jobs for the native tests, the Android unit tests and lint, and the addon tests on Godot 4.4.1.
-- Release packaging: signed release APK from environment secrets, addon zip with checksum (`tools/package`), and a tag-triggered release workflow.
+- Release packaging: signed release APK from environment secrets, addon zip with LICENSE and checksum (`tools/package`), and a tag-triggered release workflow.
+- Android adaptive launcher icon.
+- Mock client Play / Stop cycle mode, latency scene self-kill hook for crash runs.
+- Production README, test report (`docs/TEST-REPORT.md`), naming and trademark research.
+
+### Changed
+
+- Media Foundation hardware encoding no longer polls for MFT events: p50 per 720p frame dropped from 20 ms to 5 ms.
+- Capture pacing tolerates frame jitter, so the stream holds the target 60 fps.
+
+### Fixed
+
+- A Play command arriving right after Welcome launched the game without the link variables, so nothing streamed.
+- Android: rotation no longer recreates the activity and replays a consumed token; decoder input size, FIFO frame matching, bounded latency samples, reject reasons, socket and display metrics handling.
+- Native: unsupported force-keyframe on MF encoders is recoverable, NVENC input is flushed before mapping, finished server workers are pruned, phone Error messages are reported.
+- Addon: launch timeout when the phone never connects, stale uninstall prompts, deferred results after shutdown, adb reverse list order, launch error detection.
+
+### Measured
+
+- 30 minute soak on the PC: 107,181 frames at 59.5 fps, 3533/3533 taps resolved, touch to frame on the PC p50 17.4 ms, p95 33.5 ms, flat memory.
 
 ## [0.1.0] - 2026-11-01
 
