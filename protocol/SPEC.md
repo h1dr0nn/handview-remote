@@ -123,7 +123,9 @@ The token never travels through a broadcast and expires after its first use.
 | Step | Paused | Advance one frame (only if supported) |
 | Stop | Playing, Paused | Stop the game |
 
-Other states: `CommandResult{Ignored}`. Compiling or Reloading: `CommandResult{Busy}`. Unsupported command for this host: `CommandResult{Ignored}`; the app hides those buttons for host Godot unless support is added.
+Other states: `CommandResult{Ignored}`. Compiling or Reloading: `CommandResult{Busy}`. Unsupported command for this host: `CommandResult{Ignored}`.
+
+Pause while Playing answers `CommandResult{Ok}` with state Paused, then `StreamPaused{Paused}` and `EditorState{Paused}`; Pause while Paused resumes (`EditorState{Playing}`). Step while Paused advances one frame and sends that frame. Host Godot supports both while the editor debugger is attached to the game; its Game workspace pause button is not synchronized with them.
 
 Stop or game exit: `StreamPaused{NotPlaying}`, then `EditorState{Stopped}`; the session stays open. Game crash: `EditorState{Stopped}` once the editor sees the process gone.
 

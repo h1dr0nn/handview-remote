@@ -62,6 +62,7 @@
     <string name="mf_software">MF Software</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
     <string name="step">Step</string>
     <string name="stop">Stop</string>
     <string name="disconnect">Disconnect</string>

@@ -90,14 +90,10 @@ private enum class Control(val cmd: Cmd, val label: Int, val icon: ImageVector) 
 }
 
 private fun enabled(ui: CastState, control: Control) = !ui.busy && when (control) {
-    Control.Play -> ui.editor == EditorStateValue.Stopped || ui.editor == EditorStateValue.Paused
+    Control.Play -> ui.editor == EditorStateValue.Stopped
     Control.Pause, Control.Stop -> ui.editor == EditorStateValue.Playing || ui.editor == EditorStateValue.Paused
     Control.Step -> ui.editor == EditorStateValue.Paused
 }
-
-// Play resumes a paused game; Pause shows as active while paused.
-private fun command(ui: CastState, control: Control) =
-    if (control == Control.Pause && ui.editor == EditorStateValue.Paused) Cmd.Play else control.cmd
 
 @Composable
 private fun encoderName(ui: CastState) = stringResource(
@@ -156,18 +152,19 @@ private fun CastLandscape(ui: CastState, actions: Actions) {
 @Composable
 private fun ControlTile(control: Control, ui: CastState, actions: Actions, modifier: Modifier) {
     val on = enabled(ui, control)
-    val active = control == Control.Pause && ui.editor == EditorStateValue.Paused
-    val primary = on && (control == Control.Play || active)
+    // Pause toggles (SPEC 6.4): while paused it reads Resume.
+    val resume = control == Control.Pause && ui.editor == EditorStateValue.Paused
+    val primary = on && (control == Control.Play || resume)
     val content = if (primary) Palette.OnAccent else Palette.Ink
     Column(
         modifier.alpha(if (on) 1f else 0.4f).clip(CardShape).background(if (primary) Palette.Accent else Palette.Card)
-            .clickable(enabled = on, role = Role.Button) { actions.command(command(ui, control)) },
+            .clickable(enabled = on, role = Role.Button) { actions.command(control.cmd) },
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(control.icon, null, Modifier.size(18.dp), tint = content)
+        Icon(if (resume) Icons.Play else control.icon, null, Modifier.size(18.dp), tint = content)
         Spacer(Modifier.height(4.dp))
-        Text(stringResource(control.label).uppercase(), style = Type.Button, color = content, maxLines = 1)
+        Text(stringResource(if (resume) R.string.resume else control.label).uppercase(), style = Type.Button, color = content, maxLines = 1)
     }
 }
 

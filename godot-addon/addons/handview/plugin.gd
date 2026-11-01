@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 
-# Editor side of Handview: dock, USB launch, phone session, Play / Stop.
+# Editor side of Handview: dock, USB launch, phone session, Play / Pause / Step / Stop.
 # The game side is the "Handview" autoload added while the plugin is enabled.
 
 const AUTOLOAD_NAME: String = "Handview"
@@ -9,9 +9,11 @@ const AUTOLOAD_PATH: String = "res://addons/handview/runtime/handview_runtime.gd
 
 const Controller := preload("editor/session_controller.gd")
 const Dock := preload("editor/dock.gd")
+const Debugger := preload("editor/debugger.gd")
 
 var _controller: Controller = null
 var _dock: Dock = null
+var _debugger: Debugger = null
 var _started: bool = false
 var _idle_frames: int = 0
 
@@ -26,6 +28,9 @@ func _disable_plugin() -> void:
 
 func _enter_tree() -> void:
 	_controller = Controller.new()
+	_debugger = Debugger.new()
+	add_debugger_plugin(_debugger)
+	_controller.debugger = _debugger
 	_dock = Dock.new()
 	_dock.setup(_controller)
 	add_control_to_dock(EditorPlugin.DOCK_SLOT_RIGHT_UL, _dock)
@@ -39,6 +44,9 @@ func _exit_tree() -> void:
 	if _controller != null:
 		_controller.shutdown()
 		_controller = null
+	if _debugger != null:
+		remove_debugger_plugin(_debugger)
+		_debugger = null
 
 
 func _process(delta: float) -> void:

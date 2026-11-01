@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Pause, Resume and Step from the phone on host Godot, through the editor debugger (DECISIONS D14).
+- Android app screens from the wireframes: Home (Connect), USB Waiting, Scan QR, Settings and Cast, in a warm paper style with the system font. Settings are saved; items without a backend yet are marked Soon. Recently used editors are listed on Home.
+
+### Changed
+
+- The app opens in portrait; Cast follows the stream orientation. Cast chrome is one status row and one control row so a 9:16 game fills the width.
+
+### Fixed
+
+- Touch-to-display never showed a value on Pixel phones: the Exynos decoder reports render times on CLOCK_BOOTTIME. Render times are now mapped onto the monotonic clock.
+
 ## [0.2.0] - 2026-11-01
 
 Features: the full slice works end to end on the PC (Godot editor, hidden game, capture, H.264, relay, decoding client, touch back) with every encoder backend and both orientations. Verification on real phones is still pending.

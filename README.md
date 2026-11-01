@@ -86,10 +86,10 @@ Results measured on phones will be added to the release notes.
 
 - Windows only. The host is Godot 4.4 or newer on Windows 10 or 11 x64.
 - USB only. There is no Wi-Fi connection.
-- Pause and Step are not available yet. They are waiting for approval (see [DECISIONS D14](docs/DECISIONS.md)); the host answers them with "Ignored" and the app keeps those buttons hidden.
+- Pause and Step use the editor debugger, like the Game workspace. Its own pause button does not follow them ([DECISIONS D14](docs/DECISIONS.md)).
 - One phone at a time. Starting a session for another device replaces the current one.
 - Phone plays rely on finding the Game workspace item "Embed Game on Next Play". If a Godot version renames or removes it, the game runs embedded in the editor.
-- Keyboard, sensors and the Back button are not forwarded to the game. Only touch is.
+- Keyboard, sensors and the Back button are not forwarded to the game. Only touch is. The app shows these, Wi-Fi, QR pairing, video options and auto reconnect as "Soon".
 - Viewports with HDR 2D enabled fall back to a slower readback path.
 - The Compatibility renderer uses a slower readback path.
 - Development and measurements ran on Godot 4.7.2. CI runs the addon tests on Godot 4.4.1. The Game workspace behavior on 4.4 was checked in the source only. Phone behavior has been tested with the mock tools; verification on real devices is pending.

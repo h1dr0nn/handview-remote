@@ -10,8 +10,8 @@ func _eq(actual: Variant, expected: Variant, label: String) -> void:
 		failures.append("%s: expected %s, got %s" % [label, str(expected), str(actual)])
 
 
-func _decide(cmd: int, state: int, result: int, action: String, can_play: bool = true) -> void:
-	var decision: Dictionary = Logic.decide_command(cmd, state, can_play)
+func _decide(cmd: int, state: int, result: int, action: String, can_play: bool = true, can_pause: bool = true) -> void:
+	var decision: Dictionary = Logic.decide_command(cmd, state, can_play, can_pause)
 	var label: String = "cmd %d state %d" % [cmd, state]
 	_eq(decision["result"], result, label + " result")
 	_eq(decision["action"], action, label + " action")
@@ -30,10 +30,21 @@ func test_stop_decisions() -> void:
 	_decide(Logic.CMD_STOP, Logic.STATE_STOPPED, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
 
 
-func test_pause_and_step_are_ignored() -> void:
-	for state: int in [Logic.STATE_STOPPED, Logic.STATE_PLAYING, Logic.STATE_PAUSED]:
-		_decide(Logic.CMD_PAUSE, state, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
-		_decide(Logic.CMD_STEP, state, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
+func test_pause_toggles() -> void:
+	_decide(Logic.CMD_PAUSE, Logic.STATE_PLAYING, Logic.RESULT_OK, Logic.ACTION_PAUSE)
+	_decide(Logic.CMD_PAUSE, Logic.STATE_PAUSED, Logic.RESULT_OK, Logic.ACTION_RESUME)
+	_decide(Logic.CMD_PAUSE, Logic.STATE_STOPPED, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
+
+
+func test_step_only_while_paused() -> void:
+	_decide(Logic.CMD_STEP, Logic.STATE_PAUSED, Logic.RESULT_OK, Logic.ACTION_STEP)
+	_decide(Logic.CMD_STEP, Logic.STATE_PLAYING, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
+	_decide(Logic.CMD_STEP, Logic.STATE_STOPPED, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
+
+
+func test_pause_and_step_need_debugger() -> void:
+	_decide(Logic.CMD_PAUSE, Logic.STATE_PLAYING, Logic.RESULT_IGNORED, Logic.ACTION_NONE, true, false)
+	_decide(Logic.CMD_STEP, Logic.STATE_PAUSED, Logic.RESULT_IGNORED, Logic.ACTION_NONE, true, false)
 
 
 func test_busy_while_compiling_or_reloading() -> void:
@@ -51,6 +62,9 @@ func test_state_after_action() -> void:
 	_eq(Logic.state_after(Logic.ACTION_PLAY, Logic.STATE_STOPPED), Logic.STATE_PLAYING, "play")
 	_eq(Logic.state_after(Logic.ACTION_STOP, Logic.STATE_PLAYING), Logic.STATE_STOPPED, "stop")
 	_eq(Logic.state_after(Logic.ACTION_NONE, Logic.STATE_PLAYING), Logic.STATE_PLAYING, "none")
+	_eq(Logic.state_after(Logic.ACTION_PAUSE, Logic.STATE_PLAYING), Logic.STATE_PAUSED, "pause")
+	_eq(Logic.state_after(Logic.ACTION_RESUME, Logic.STATE_PAUSED), Logic.STATE_PLAYING, "resume")
+	_eq(Logic.state_after(Logic.ACTION_STEP, Logic.STATE_PAUSED), Logic.STATE_PAUSED, "step")
 
 
 func test_playing_transition() -> void:

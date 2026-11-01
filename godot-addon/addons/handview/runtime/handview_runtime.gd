@@ -9,6 +9,10 @@ const Mapper := preload("touch_mapper.gd")
 const HIDDEN_POSITION: Vector2i = Vector2i(-32000, -32000)
 const IDLE_FPS: int = 60
 const STATUS_INTERVAL_FRAMES: int = 10
+# Node::NOTIFICATION_SUSPENDED / UNSUSPENDED, sent when the editor pauses the
+# game (DECISIONS D14). Not bound as GDScript constants in Godot 4.4 to 4.7.
+const NOTIFICATION_SUSPENDED_VALUE: int = 9003
+const NOTIFICATION_UNSUSPENDED_VALUE: int = 9004
 
 # The native HandviewRuntime object. Untyped so the script still parses when
 # the native library is missing on this platform.
@@ -17,6 +21,10 @@ var _last_positions: Dictionary = {}
 var _streaming: bool = false
 var _frame_counter: int = 0
 var _applied_fps: int = -1
+# While suspended the renderer keeps drawing the same image, so capture stops.
+# A Step unsuspends for one frame; that frame is captured once.
+var _suspended: bool = false
+var _capture_once: bool = false
 
 
 func _ready() -> void:
@@ -84,8 +92,9 @@ func _inject_touches() -> void:
 
 
 func _on_frame_post_draw() -> void:
-	if _runtime == null or not _runtime.call("wants_frame"):
+	if _runtime == null or (_suspended and not _capture_once) or not _runtime.call("wants_frame"):
 		return
+	_capture_once = false
 	var texture: ViewportTexture = get_viewport().get_texture()
 	var size: Vector2i = Vector2i(texture.get_size())
 	var data: PackedByteArray = PackedByteArray()
@@ -121,3 +130,8 @@ func _exit_tree() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
 		_stop_runtime()
+	elif what == NOTIFICATION_SUSPENDED_VALUE:
+		_suspended = true
+	elif what == NOTIFICATION_UNSUSPENDED_VALUE:
+		_suspended = false
+		_capture_once = true

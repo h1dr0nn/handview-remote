@@ -23,6 +23,9 @@ const RESULT_BUSY: int = 2
 const ACTION_NONE: String = "none"
 const ACTION_PLAY: String = "play"
 const ACTION_STOP: String = "stop"
+const ACTION_PAUSE: String = "pause"
+const ACTION_RESUME: String = "resume"
+const ACTION_STEP: String = "step"
 
 const EMBED_LABEL: String = "Embed Game on Next Play"
 const LOOPBACK_SERIAL: String = "loopback:test"
@@ -39,7 +42,8 @@ const SDK_HINT: String = "Set the Android SDK path in Editor Settings > Export >
 
 
 # Which CommandResult and which editor action a phone command gets in a state (SPEC 6.4, D14).
-static func decide_command(cmd: int, state: int, can_play: bool = true) -> Dictionary:
+# Pause toggles; Pause and Step need the editor debugger (can_pause).
+static func decide_command(cmd: int, state: int, can_play: bool = true, can_pause: bool = true) -> Dictionary:
 	if cmd < CMD_PLAY or cmd > CMD_STOP:
 		return {"result": RESULT_IGNORED, "action": ACTION_NONE}
 	if state == STATE_COMPILING or state == STATE_RELOADING:
@@ -48,6 +52,12 @@ static func decide_command(cmd: int, state: int, can_play: bool = true) -> Dicti
 		return {"result": RESULT_OK, "action": ACTION_PLAY}
 	if cmd == CMD_STOP and (state == STATE_PLAYING or state == STATE_PAUSED):
 		return {"result": RESULT_OK, "action": ACTION_STOP}
+	if cmd == CMD_PAUSE and state == STATE_PLAYING and can_pause:
+		return {"result": RESULT_OK, "action": ACTION_PAUSE}
+	if cmd == CMD_PAUSE and state == STATE_PAUSED and can_pause:
+		return {"result": RESULT_OK, "action": ACTION_RESUME}
+	if cmd == CMD_STEP and state == STATE_PAUSED and can_pause:
+		return {"result": RESULT_OK, "action": ACTION_STEP}
 	return {"result": RESULT_IGNORED, "action": ACTION_NONE}
 
 
@@ -57,6 +67,10 @@ static func state_after(action: String, state: int) -> int:
 		return STATE_PLAYING
 	if action == ACTION_STOP:
 		return STATE_STOPPED
+	if action == ACTION_PAUSE or action == ACTION_STEP:
+		return STATE_PAUSED
+	if action == ACTION_RESUME:
+		return STATE_PLAYING
 	return state
 
 

@@ -3,7 +3,7 @@ class_name HandviewSessionController
 extends RefCounted
 
 # Editor side session logic: device list, USB launch (SPEC section 5), phone
-# session events and Play / Stop control (SPEC 6.4). Every adb call runs on a
+# session events and Play / Pause / Step / Stop control (SPEC 6.4). Every adb call runs on a
 # WorkerThreadPool task and reports back through call_deferred, so the editor
 # main thread never waits for adb. The plugin calls process() once per frame.
 
@@ -15,12 +15,15 @@ signal uninstall_cancelled
 const Adb := preload("adb.gd")
 const Logic := preload("session_logic.gd")
 const EmbedToggle := preload("embed_toggle.gd")
+const Debugger := preload("debugger.gd")
 
 const APK_PATH: String = "res://addons/handview/android/handview.apk"
 const VERSION_PATH: String = "res://addons/handview/android/handview.version"
 const REFRESH_INTERVAL_SEC: float = 3.0
 const EMBED_RESTORE_DELAY_SEC: float = 1.5
 const STREAM_FPS: int = 60
+const PAUSE_REASON_NOT_PLAYING: int = 0
+const PAUSE_REASON_PAUSED: int = 1
 const METADATA_SECTION: String = "handview"
 const METADATA_SERIAL: String = "serial"
 
@@ -36,6 +39,8 @@ var selected_serial: String = ""
 var status: String = ""
 var encoder_text: String = ""
 var phone_info: Dictionary = {}
+# Set by the plugin; pauses and steps the game. Null disables Pause and Step.
+var debugger: Debugger = null
 
 var _native_ok: bool = false
 # Native HandviewEditorSession. Untyped so the script parses without the library.
@@ -575,8 +580,23 @@ func _can_play() -> bool:
 
 
 func _handle_command(cmd: int) -> void:
-	var decision: Dictionary = Logic.decide_command(cmd, _editor_state, _can_play())
+	var can_pause: bool = debugger != null and debugger.has_active_session()
+	var decision: Dictionary = Logic.decide_command(cmd, _editor_state, _can_play(), can_pause)
 	var action: String = str(decision["action"])
+	if action == Logic.ACTION_PAUSE or action == Logic.ACTION_RESUME or action == Logic.ACTION_STEP:
+		var sent: bool = debugger.next_frame() if action == Logic.ACTION_STEP else debugger.set_suspended(action == Logic.ACTION_PAUSE)
+		if not sent:
+			_session.call("send_command_result", cmd, Logic.RESULT_IGNORED, _editor_state)
+			return
+		var previous: int = _editor_state
+		_set_editor_state(Logic.state_after(action, _editor_state), false)
+		_session.call("send_command_result", cmd, decision["result"], _editor_state)
+		if action == Logic.ACTION_PAUSE:
+			_session.call("send_stream_paused", PAUSE_REASON_PAUSED)
+		if _editor_state != previous:
+			_session.call("send_editor_state", _editor_state)
+		state_changed.emit()
+		return
 	if action == Logic.ACTION_PLAY:
 		_do_play()
 	elif action == Logic.ACTION_STOP:
@@ -585,7 +605,7 @@ func _handle_command(cmd: int) -> void:
 		_set_editor_state(Logic.STATE_STOPPED, false)
 		_embed.end_launch()
 		_session.call("send_command_result", cmd, decision["result"], _editor_state)
-		_session.call("send_stream_paused", 0)
+		_session.call("send_stream_paused", PAUSE_REASON_NOT_PLAYING)
 		_session.call("send_editor_state", _editor_state)
 		return
 	elif cmd == Logic.CMD_PLAY and _editor_state == Logic.STATE_STOPPED and not _can_play():
