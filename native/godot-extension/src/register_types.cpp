@@ -1,6 +1,8 @@
 #include "register_types.h"
 
+#include "handview_editor_session.h"
 #include "handview_native.h"
+#include "handview_runtime.h"
 
 #include <gdextension_interface.h>
 #include <godot_cpp/core/defs.hpp>
@@ -11,6 +13,8 @@ void initialize_handview_module(godot::ModuleInitializationLevel p_level) {
         return;
     }
     GDREGISTER_CLASS(handview::HandviewNative);
+    GDREGISTER_CLASS(handview::HandviewEditorSession);
+    GDREGISTER_CLASS(handview::HandviewRuntime);
 }
 
 void uninitialize_handview_module(godot::ModuleInitializationLevel p_level) {

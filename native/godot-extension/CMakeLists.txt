@@ -14,6 +14,8 @@ add_subdirectory("${GODOT_CPP_DIR}" "${CMAKE_BINARY_DIR}/godot-cpp" EXCLUDE_FROM
 add_library(handview_gdextension SHARED
     src/register_types.cpp
     src/handview_native.cpp
+    src/handview_editor_session.cpp
+    src/handview_runtime.cpp
 )
 target_link_libraries(handview_gdextension PRIVATE handview::core godot::cpp)
 
