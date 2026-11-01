@@ -59,8 +59,73 @@ struct Activations {
                   "MFTEnumEx", e);
     }
 };
+// Waits for the next event of an async MFT without polling: Sleep(1) costs a
+// full timer tick (about 15.6 ms) on Windows and added a frame of latency.
+class EventWaiter final : public IMFAsyncCallback {
+  public:
+    EventWaiter() : done_(CreateEventW(nullptr, TRUE, FALSE, nullptr)) {}
+    ~EventWaiter() {
+        if (done_)
+            CloseHandle(done_);
+    }
+    // Returns S_OK with the event, HRESULT_FROM_WIN32(ERROR_TIMEOUT) on timeout,
+    // or the generator's error. A request still pending after a timeout is
+    // reused by the next call.
+    HRESULT next(IMFMediaEventGenerator *generator, DWORD timeout_ms, ComPtr<IMFMediaEvent> &out) {
+        if (!done_)
+            return E_OUTOFMEMORY;
+        if (!pending_) {
+            ResetEvent(done_);
+            generator_ = generator;
+            const HRESULT h = generator->BeginGetEvent(this, nullptr);
+            if (FAILED(h))
+                return h;
+            pending_ = true;
+        }
+        if (WaitForSingleObject(done_, timeout_ms) != WAIT_OBJECT_0)
+            return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+        pending_ = false;
+        out = std::move(result_);
+        return status_;
+    }
+    STDMETHODIMP QueryInterface(REFIID riid, void **object) override {
+        if (!object)
+            return E_POINTER;
+        if (riid == __uuidof(IUnknown) || riid == __uuidof(IMFAsyncCallback)) {
+            *object = static_cast<IMFAsyncCallback *>(this);
+            AddRef();
+            return S_OK;
+        }
+        *object = nullptr;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&refs_); }
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG left = InterlockedDecrement(&refs_);
+        if (left == 0)
+            delete this;
+        return left;
+    }
+    STDMETHODIMP GetParameters(DWORD *, DWORD *) override { return E_NOTIMPL; }
+    STDMETHODIMP Invoke(IMFAsyncResult *result) override {
+        result_.Reset();
+        status_ = generator_->EndGetEvent(result, &result_);
+        SetEvent(done_);
+        return S_OK;
+    }
+
+  private:
+    volatile LONG refs_ = 1;
+    HANDLE done_ = nullptr;
+    bool pending_ = false;
+    ComPtr<IMFMediaEventGenerator> generator_;
+    ComPtr<IMFMediaEvent> result_;
+    HRESULT status_ = S_OK;
+};
+
 class Mf final : public Encoder {
     Runtime runtime;
+    ComPtr<EventWaiter> waiter;
     Gpu gpu;
     bool hardware;
     EncoderConfig config{};
@@ -94,14 +159,16 @@ class Mf final : public Encoder {
             have_output = false;
             return true;
         }
+        if (!waiter)
+            waiter.Attach(new EventWaiter());
         auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         while (std::chrono::steady_clock::now() < deadline) {
+            const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - std::chrono::steady_clock::now());
             ComPtr<IMFMediaEvent> ev;
-            auto h = events->GetEvent(MF_EVENT_FLAG_NO_WAIT, &ev);
-            if (h == MF_E_NO_EVENTS_AVAILABLE) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                continue;
-            }
+            auto h = waiter->next(events.Get(), static_cast<DWORD>(std::max<long long>(1, left.count())), ev);
+            if (h == HRESULT_FROM_WIN32(ERROR_TIMEOUT))
+                break;
             if (!hr(h, "MFT GetEvent", e))
                 return false;
             HRESULT status = S_OK;
