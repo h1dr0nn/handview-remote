@@ -47,6 +47,10 @@ The 32 byte one-time token is generated in the editor (`Crypto.generate_random_b
 
 Godot's root viewport holds 8-bit sRGB-encoded RGB. Conversion to NV12 uses BT.709 limited range, and the SPS VUI carries the color description so Android decoders do not guess BT.601. Status: final, verify on devices.
 
+## D12. Encoder input: CPU readback, then D3D11 upload
+
+Spike 1 (`docs/spikes/01-gpu-interop.md`) measured sync readback of the root viewport at 2.3 to 2.6 ms per 1080p frame without vsync, while async readback adds a full frame and zero-copy sharing has no synchronization point in Godot's public API. The game runtime reads the frame back with `RenderingDevice.texture_get_data` (Forward+, Mobile) or `Viewport.get_texture().get_image()` (Compatibility), disables vsync and sets `Engine.max_fps` to the stream FPS in Handview-launched runs, and hands the bytes to an encoder thread that uploads them to its own D3D11 device. Status: final.
+
 ## D11. Versioning
 
 SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish (first production release) at `1.0.0`. CHANGELOG follows Keep a Changelog. Status: final.

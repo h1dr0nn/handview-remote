@@ -30,3 +30,6 @@ android-app/.kotlin/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Spike projects
+tools/spikes/*/.godot/
