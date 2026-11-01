@@ -49,12 +49,15 @@ fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit,
     var address by rememberSaveable { mutableStateOf("") }
     Page {
         Row(Modifier.fillMaxWidth().height(HeaderButtonSize), verticalAlignment = Alignment.CenterVertically) {
-            Wordmark(stringResource(R.string.app_name), Modifier.weight(1f))
+            Wordmark(stringResource(R.string.app_name))
+            Spacer(Modifier.weight(1f))
             IconButton(if (Palette.dark) Icons.Sun else Icons.Moon, stringResource(if (Palette.dark) R.string.light_mode else R.string.dark_mode), toggleTheme)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(HeaderButtonGap.dp))
             IconButton(Icons.Settings, stringResource(R.string.settings_title)) { open(Screen.Settings) }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(18.dp))
+        Text(stringResource(R.string.home_title), style = Type.Title, color = Palette.Ink)
+        Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.home_subtitle), style = Type.Subtitle, color = Palette.Muted)
         notice?.let { Spacer(Modifier.height(20.dp)); Notice(stringResource(it)) }
         SectionLabel(stringResource(R.string.ip_port))

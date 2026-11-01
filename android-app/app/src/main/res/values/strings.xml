@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Handview</string>
     <string name="back">Back</string>
+    <string name="home_title">Connect</string>
     <string name="home_subtitle">Pick how this phone reaches the editor.</string>
     <string name="ip_port">IP and Port</string>
     <string name="ip_hint">192.168.1.10:38500</string>

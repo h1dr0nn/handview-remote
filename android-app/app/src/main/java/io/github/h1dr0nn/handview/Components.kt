@@ -18,10 +18,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,20 +34,20 @@ fun Eyebrow(text: String, modifier: Modifier = Modifier, color: Color = Palette.
     Text(text.uppercase(), modifier, style = Type.Eyebrow, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
 val HeaderButtonSize = 40.dp
+const val HeaderButtonGap = 8
 
-// The app name as a logo: its capitals span exactly the header button height,
-// with the baseline on the buttons' bottom edge.
+// The app name as a logo whose text box is exactly as tall as the header
+// buttons: font size and line height both equal the button size.
 @Composable
 fun Wordmark(text: String, modifier: Modifier = Modifier) {
-    val density = LocalDensity.current
-    val size = with(density) { (HeaderButtonSize / Type.CAP_HEIGHT).toSp() }
+    val size = with(LocalDensity.current) { HeaderButtonSize.toSp() }
     Text(
-        text, maxLines = 1, softWrap = false, style = Type.Wordmark.copy(fontSize = size, lineHeight = size), color = Palette.Ink,
-        modifier = modifier.layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-            val height = HeaderButtonSize.roundToPx()
-            layout(placeable.width, height) { placeable.place(0, height - placeable[FirstBaseline]) }
-        },
+        text.uppercase(), modifier.height(HeaderButtonSize), maxLines = 1, softWrap = false, color = Palette.Ink,
+        style = Type.Wordmark.copy(
+            fontSize = size, lineHeight = size,
+            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+        ),
     )
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 // Warm paper palette: one accent, everything else ink on paper. The dark
@@ -34,11 +35,10 @@ object Palette {
 
 object Type {
     private val family = FontFamily.Default
-    // Cap height of the system sans (Roboto) as a share of the font size.
-    const val CAP_HEIGHT = 0.711f
     // Small caps-style labels above titles and in status rows.
     val Eyebrow = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 1.4.sp, fontFeatureSettings = "tnum")
-    val Wordmark = TextStyle(fontFamily = family, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
+    // Letter spacing in em so it scales with the computed size.
+    val Wordmark = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, letterSpacing = 0.04.em)
     val Title = TextStyle(fontFamily = family, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp)
     val Subtitle = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
     val CardTitle = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 21.sp)
