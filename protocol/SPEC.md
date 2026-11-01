@@ -58,7 +58,7 @@ Field notes:
 - `Hello.decoderCount` may be 0. `Hello.model` is the device model for logs.
 - `Touch.count` is 1 to 10. `x`, `y` are normalized 0..1 over the video area; values outside 0..1 are clamped by the host. `pressure` is 0..1.
 - `DecoderStats` is sent every 250 ms.
-- `FrameAck` is sent for every frame the decoder has output.
+- `FrameAck` is sent for every frame the decoder has output, and for frames the app drops before decoding (while it waits for an IDR after a decoder restart).
 - `StreamConfigChanged`: the next `VideoFrame` is an IDR.
 - `ViewSize` is the size in pixels of the area the app shows the video in. The app sends it after `Welcome` and whenever the area changes (rotation, full screen). A host may fit the game to its aspect ratio; the Godot host resizes the hidden window of a play started from the phone and leaves other windows alone. 0 x 0 means no preference.
 - `VideoFrame.lastTouchSeq` is the seq of the newest `Touch` the game had processed in the update that produced this frame, 0 if none yet.
@@ -139,7 +139,7 @@ Stop or game exit: `StreamPaused{NotPlaying}`, then `EditorState{Stopped}`; the 
 
 ### 6.5 Flow control
 
-- In-flight = last sent `frameSeq` minus the newest acked `frameSeq`. The host captures and encodes a new frame only when in-flight <= 1; otherwise it skips the frame **before** encoding.
+- In-flight = last sent `frameSeq` minus the newest acked `frameSeq`. The host captures and encodes a new frame only when in-flight <= 1; otherwise it skips the frame **before** encoding. `RequestKeyframe` resets the in-flight count, since the app is resyncing and has dropped what it had.
 - An encoded frame is never dropped alone. If dropping is unavoidable, drop everything up to the next IDR.
 - Decoder backpressure: `pendingOutputs > 1` continuously for more than 500 ms makes the host lower FPS, then bitrate, and recover step by step once stable (thresholds are config values). Severe lag on the app: flush the decoder, drop every frame until the next IDR, send `RequestKeyframe`.
 - `RequestKeyframe` is ignored if an IDR went out less than the minimum interval ago (config, default 500 ms until measured).

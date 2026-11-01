@@ -62,19 +62,16 @@ fun IconButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     }
 }
 
-// Screen header: back button or app eyebrow, an optional trailing button, then the big title.
+// Screen header: back button with the title centered on the same row, then
+// an optional subtitle.
 @Composable
-fun ScreenHeader(title: String, subtitle: String?, back: (() -> Unit)?, trailing: (@Composable () -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (back != null) IconButton(Icons.Back, stringResource(R.string.back), back)
-        else Eyebrow(stringResource(R.string.app_name))
-        Spacer(Modifier.weight(1f))
-        trailing?.invoke()
+fun ScreenHeader(title: String, subtitle: String?, back: () -> Unit) {
+    Box(Modifier.fillMaxWidth().height(HeaderButtonSize), contentAlignment = Alignment.Center) {
+        Box(Modifier.align(Alignment.CenterStart)) { IconButton(Icons.Back, stringResource(R.string.back), back) }
+        Text(title, Modifier.padding(horizontal = HeaderButtonSize + 8.dp), style = Type.Heading, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
-    Spacer(Modifier.height(18.dp))
-    Text(title, style = Type.Title, color = Palette.Ink)
     if (subtitle != null) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
         Text(subtitle, style = Type.Subtitle, color = Palette.Muted)
     }
 }

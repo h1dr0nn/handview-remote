@@ -178,6 +178,12 @@ struct StreamController::Impl {
             status.view_width = view->width;
             status.view_height = view->height;
         } else if (std::holds_alternative<RequestKeyframe>(message)) {
+            // The app is resyncing and dropped what it had without acking it;
+            // without this reset the in-flight limit could hold the IDR back.
+            {
+                std::lock_guard lock(mutex);
+                inflight.reset();
+            }
             if (keyframes.request(now)) force_idr = true;
         }
     }

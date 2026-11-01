@@ -7,11 +7,14 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
+import android.util.Log
 import android.view.Surface
 import io.github.h1dr0nn.handview.client.*
 import io.github.h1dr0nn.handview.protocol.*
 import java.nio.ByteBuffer
 import kotlin.math.abs
+
+private const val TAG = "Handview"
 
 class VideoDecoder(
     private val client: SessionClient,
@@ -47,6 +50,7 @@ class VideoDecoder(
             val now = System.nanoTime()
             if (waiting && configured && surface != null && now - lastKeyframeRequest >= 1_000_000_000L) {
                 lastKeyframeRequest = now
+                Log.d(TAG, "waiting for a keyframe, ${frames.size} frames queued")
                 client.requestKeyframe()
             }
             if (frames.size > 6 || outputs.size > 3) {
@@ -59,23 +63,25 @@ class VideoDecoder(
     init { handler.post(stats) }
     fun setSurface(value: Surface?) { handler.post {
         if (closed || surface === value) return@post
+        Log.d(TAG, "surface ${if (value == null) "cleared" else "set"}")
         if (codec != null || value == null) reset()
         surface = value
         if (value != null) {
-            try { feed() } catch (_: Exception) { recover(ErrorCode.ProcessFailed) }
+            try { feed() } catch (e: Exception) { Log.w(TAG, "decoder failed", e); recover(ErrorCode.ProcessFailed) }
             if (waiting && frames.isEmpty()) client.requestKeyframe()
         }
     } }
     fun configure(w: Int, h: Int, streamId: Int) { handler.post {
         if (closed || w <= 0 || h <= 0) return@post
         if (configured) reset()
+        Log.d(TAG, "configure ${w}x$h stream $streamId")
         width = w; height = h; stream = streamId; configured = true
-        try { feed() } catch (_: Exception) { recover(ErrorCode.InitFailed) }
+        try { feed() } catch (e: Exception) { Log.w(TAG, "decoder failed", e); recover(ErrorCode.InitFailed) }
     } }
     fun frame(frame: VideoFrame) { handler.post {
         if (closed) return@post
         frames.addLast(frame)
-        try { feed() } catch (_: Exception) { recover(ErrorCode.ProcessFailed) }
+        try { feed() } catch (e: Exception) { Log.w(TAG, "decoder failed", e); recover(ErrorCode.ProcessFailed) }
     } }
     private fun initialize(frame: VideoFrame) {
         val data = frame.data.toByteArray()
@@ -104,6 +110,7 @@ class VideoDecoder(
         }
         val candidate = try { createCandidate(true) } catch (_: Exception) { createCandidate(false) }
         codec = candidate
+        Log.d(TAG, "decoder ${candidate.name} started for ${width}x$height")
         candidate.start()
     }
     private fun installCallbacks(candidate: MediaCodec) {
@@ -111,7 +118,7 @@ class VideoDecoder(
             override fun onInputBufferAvailable(c: MediaCodec, index: Int) {
                 if (c !== codec) return
                 inputs.addLast(index)
-                try { feed() } catch (_: Exception) { recover(ErrorCode.ProcessFailed) }
+                try { feed() } catch (e: Exception) { Log.w(TAG, "decoder failed", e); recover(ErrorCode.ProcessFailed) }
             }
             override fun onOutputBufferAvailable(c: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
                 if (c !== codec) return
@@ -146,7 +153,9 @@ class VideoDecoder(
     private fun feed() {
         if (!configured || surface == null) return
         if (waiting) {
-            while (frames.isNotEmpty() && frames.first().flags.wire and 3 != 3) frames.removeFirst()
+            // Frames before the next IDR cannot be decoded. Ack them anyway, or the
+            // host's in-flight limit stops sending and the IDR never comes.
+            while (frames.isNotEmpty() && frames.first().flags.wire and 3 != 3) client.sendFrameAck(frames.removeFirst().frameSeq)
             val first = frames.firstOrNull() ?: return
             initialize(first)
             waiting = false
@@ -174,15 +183,18 @@ class VideoDecoder(
                 else dropped++
                 c.releaseOutputBuffer(output.index, show)
             }
-        } catch (_: Exception) { recover(ErrorCode.ProcessFailed) }
+        } catch (e: Exception) { Log.w(TAG, "decoder failed", e); recover(ErrorCode.ProcessFailed) }
     }
     private fun recover(code: ErrorCode?) {
+        Log.w(TAG, "decoder recovery ${code ?: "lag"}")
         if (code == null) runCatching { codec?.flush() }
         reset()
         code?.let { client.sendError(ErrorSource.Decoder, it) }
         client.requestKeyframe()
     }
     private fun reset() {
+        // Frames queued or inside the old decoder are gone: release them on the host.
+        (listOfNotNull(frames.lastOrNull()?.frameSeq, stamps.lastOrNull()?.seq).maxOrNull())?.let { client.sendFrameAck(it) }
         val old = codec; codec = null
         runCatching { old?.stop() }; runCatching { old?.release() }
         frames.clear(); inputs.clear(); outputs.clear(); stamps.clear(); displaying.clear()

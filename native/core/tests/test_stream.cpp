@@ -145,8 +145,12 @@ void test_stream_pipeline() {
     auto third = editor.next_video();
     CHECK(third && third->frameSeq == 3 && third->lastTouchSeq == 7);
 
-    // RequestKeyframe makes the next encoded frame an IDR.
-    editor.writer->send(FrameAck{third ? third->frameSeq : 3});
+    // A resyncing app drops frames without acking them, which closes the pipe.
+    // RequestKeyframe alone reopens it and an IDR follows.
+    pump(controller, 3, 50ms);
+    while (editor.next_video(100ms)) {}
+    pump(controller, 3, 50ms);
+    CHECK(!editor.next_video(150ms).has_value());
     editor.writer->send(RequestKeyframe{});
     std::optional<VideoFrame> idr;
     for (int round = 0; round < 10 && !idr; ++round) {
