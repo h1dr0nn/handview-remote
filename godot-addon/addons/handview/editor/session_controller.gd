@@ -71,11 +71,22 @@ var _embed_timer: float = 0.0
 
 
 func _init() -> void:
-	_native_ok = ClassDB.class_exists("HandviewEditorSession")
+	_ensure_native()
+
+
+# The library can load after the plugin was created (an addon copied into an
+# open editor), so this is checked again before anything needs it.
+func _ensure_native() -> bool:
 	if _native_ok:
-		_session = ClassDB.instantiate("HandviewEditorSession")
-	if _session == null:
-		_native_ok = false
+		return true
+	if not ClassDB.class_exists("HandviewEditorSession"):
+		return false
+	_session = ClassDB.instantiate("HandviewEditorSession")
+	_native_ok = _session != null
+	if _native_ok:
+		_encoder = int(_session.call("probe_encoder"))
+		encoder_text = Logic.encoder_line(_encoder)
+	return _native_ok
 
 
 # True when the loopback test hook should start a session automatically.
@@ -85,14 +96,12 @@ func loopback_requested() -> bool:
 
 # Called once by the plugin after the dock is connected.
 func start() -> void:
-	if not _native_ok:
-		_set_status("The native library is not available on this platform.")
-		return
-	_encoder = int(_session.call("probe_encoder"))
-	encoder_text = Logic.encoder_line(_encoder)
 	selected_serial = _remembered_serial()
 	_spawn(_task_cleanup_stale.bind(_find_adb()))
 	refresh_devices()
+	if not _ensure_native():
+		_set_status(Logic.NATIVE_MISSING_MESSAGE)
+		return
 	state_changed.emit()
 	# Test hook for automated end-to-end runs with tools/mock-client.
 	if OS.has_environment(ENV_LOOPBACK_FILE) and OS.get_environment(ENV_LOOPBACK_AUTOSTART) == "1":
@@ -122,7 +131,7 @@ func shutdown() -> void:
 
 
 func is_native_available() -> bool:
-	return _native_ok
+	return _ensure_native()
 
 
 func is_busy() -> bool:
@@ -214,8 +223,10 @@ func process(delta: float) -> void:
 
 func refresh_devices() -> void:
 	_refresh_timer = 0.0
-	if _refreshing or not _native_ok:
+	if _refreshing:
 		return
+	if not _native_ok and _ensure_native():
+		_set_status("")
 	_refreshing = true
 	_spawn(_task_refresh.bind(_find_adb(), _generation))
 
@@ -258,7 +269,10 @@ func _task_cleanup_stale(adb_path: String) -> void:
 # ---- Start and stop --------------------------------------------------------
 
 func start_session_for(serial: String) -> void:
-	if _busy or not _native_ok:
+	if _busy:
+		return
+	if not _ensure_native():
+		_set_status(Logic.NATIVE_MISSING_MESSAGE)
 		return
 	if serial == Logic.LOOPBACK_SERIAL:
 		_start_loopback()

@@ -38,6 +38,8 @@ const DEFAULT_FPS: int = 60
 const LAUNCH_TIMEOUT_SEC: float = 20.0
 const LAUNCH_TIMEOUT_MESSAGE: String = "The phone did not connect. Check the phone screen and press Start Session again."
 
+const NATIVE_MISSING_MESSAGE: String = "The native library is not loaded. Restart the editor once after installing Handview."
+
 const SDK_HINT: String = "Set the Android SDK path in Editor Settings > Export > Android, or add adb to PATH."
 
 
