@@ -15,6 +15,8 @@ class SessionClient(
     private val listener: (Event) -> Unit,
     private val timeoutMs: Long = 5000,
     private val pingMs: Long = 1000,
+    // 127.0.0.1 over USB (adb reverse); the editor's LAN address over Wi-Fi.
+    private val host: String = "127.0.0.1",
 ) {
     sealed interface Event {
         data class Connected(val welcome: Welcome) : Event
@@ -61,7 +63,7 @@ class SessionClient(
             if (stopped.get()) { socket.close(); return null }
             if (isVideo) video = socket else control = socket
         }
-        socket.connect(InetSocketAddress("127.0.0.1", port), 5000)
+        socket.connect(InetSocketAddress(host, port), 5000)
         socket.tcpNoDelay = true
         return socket
     }

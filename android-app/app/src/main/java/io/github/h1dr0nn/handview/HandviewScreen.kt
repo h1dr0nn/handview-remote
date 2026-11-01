@@ -62,6 +62,7 @@ data class CastState(
     // The Keyboard setting is on, and the soft keyboard is up.
     val keyboard: Boolean = false,
     val keyboardOpen: Boolean = false,
+    val wifi: Boolean = false,
 )
 
 // Everything outside a live session: which screen is open and what it shows.
@@ -69,12 +70,16 @@ data class AppState(
     val screen: Screen = Screen.Home,
     val settings: AppSettings = AppSettings(),
     val offers: List<SessionOffer> = emptyList(),
+    val lan: List<LanEditor> = emptyList(),
+    // The editor waiting for its PIN, if the PIN sheet is open.
+    val pinFor: LanEditor? = null,
     val notice: Int? = null,
 )
 
 interface Actions {
     fun command(cmd: Cmd)
     fun disconnect()
+    fun dismissMessage()
     fun fullScreen(on: Boolean)
     fun toggleKeyboard()
     // A key typed on the phone: press and release.
@@ -82,6 +87,9 @@ interface Actions {
     // The area the video is shown in, with its unsafe edges (ViewSize).
     fun viewSize(view: ViewSize)
     fun connectTo(offer: SessionOffer)
+    fun askPin(editor: LanEditor?)
+    fun joinWithPin(editor: LanEditor, pin: String)
+    fun scanQr()
     fun open(screen: Screen)
     fun wifiNotReady()
     fun change(settings: AppSettings)
@@ -102,16 +110,23 @@ fun HandviewScreen(ui: CastState, app: AppState, actions: Actions) {
                 BackHandler { actions.disconnect() }
                 if (ui.orientation == Orientation.Landscape) CastLandscape(ui, actions) else CastPortrait(ui, actions)
             }
-            ui.connecting -> UsbScreen(connecting = true, message = null) { actions.disconnect() }
+            ui.connecting -> UsbScreen(connecting = true) { actions.disconnect() }
             else -> {
                 if (app.screen != Screen.Home) BackHandler { actions.open(Screen.Home) }
                 when (app.screen) {
-                    Screen.Home -> HomeScreen(app.offers, app.notice, actions::open, actions::connectTo, actions::wifiNotReady, actions::toggleTheme)
-                    Screen.Usb -> UsbScreen(connecting = false, message = ui.message) { actions.open(Screen.Home) }
-                    Screen.ScanQr -> ScanQrScreen({ actions.open(Screen.Home) }, { actions.open(Screen.Home) })
+                    Screen.Home -> HomeScreen(app, actions)
+                    Screen.Usb -> UsbScreen(connecting = false) { actions.open(Screen.Home) }
                     Screen.Settings -> SettingsScreen(app.settings, actions.version, actions::change) { actions.open(Screen.Home) }
                 }
             }
+        }
+        // Messages float as a toast; in a session they sit above the controls.
+        (ui.message ?: app.notice)?.let { message ->
+            Toast(
+                stringResource(message),
+                Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(start = 16.dp, end = 16.dp, bottom = if (ui.welcome != null) 96.dp else 24.dp),
+                actions::dismissMessage,
+            )
         }
     }
 }
@@ -151,7 +166,7 @@ private fun StatusRow(ui: CastState, modifier: Modifier, long: Boolean) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(Palette.Live))
         Spacer(Modifier.width(8.dp))
-        Eyebrow(stringResource(R.string.usb_encoder_fps, encoderName(ui), ui.fps), Modifier.weight(1f), Palette.Ink)
+        Eyebrow(stringResource(if (ui.wifi) R.string.wifi_encoder_fps else R.string.usb_encoder_fps, encoderName(ui), ui.fps), Modifier.weight(1f), Palette.Ink)
         Eyebrow(if (long) stringResource(R.string.touch_to_display) + " · " + latencyText(ui) else latencyText(ui))
     }
 }
@@ -161,7 +176,6 @@ private fun CastPortrait(ui: CastState, actions: Actions) {
     // Chrome stays thin so a 9:16 game fills the full width of a tall phone.
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         StatusRow(ui, Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 16.dp), long = false)
-        ui.message?.let { Notice(stringResource(it), Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) }
         Stage(ui, actions, Modifier.weight(1f).fillMaxWidth())
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp).height(56.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.weight(1f).fillMaxHeight()) }
@@ -177,7 +191,6 @@ private fun CastLandscape(ui: CastState, actions: Actions) {
     Row(Modifier.fillMaxSize().safeDrawingPadding()) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             StatusRow(ui, Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 16.dp), long = true)
-            ui.message?.let { Notice(stringResource(it), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) }
             Stage(ui, actions, Modifier.weight(1f).fillMaxWidth())
         }
         Column(Modifier.width(80.dp).fillMaxHeight().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

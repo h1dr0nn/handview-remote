@@ -1,5 +1,12 @@
 package io.github.h1dr0nn.handview
 
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.sp
+import io.github.h1dr0nn.handview.client.WifiJoin
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,7 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-enum class Screen { Home, Usb, ScanQr, Settings }
+enum class Screen { Home, Usb, Settings }
 
 @Composable
 private fun Page(content: @Composable ColumnScope.() -> Unit) {
@@ -45,19 +52,19 @@ private fun Page(content: @Composable ColumnScope.() -> Unit) {
 // ---- Home (Connect) ----
 
 @Composable
-fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit, connect: (SessionOffer) -> Unit, wifiNotReady: () -> Unit, toggleTheme: () -> Unit) {
+fun HomeScreen(app: AppState, actions: Actions) {
     var address by rememberSaveable { mutableStateOf("") }
+    val typed = WifiJoin.parseAddress(address)
     Page {
         Row(Modifier.fillMaxWidth().height(HeaderButtonSize), verticalAlignment = Alignment.CenterVertically) {
             Wordmark(stringResource(R.string.app_name))
             Spacer(Modifier.weight(1f))
-            IconButton(if (Palette.dark) Icons.Sun else Icons.Moon, stringResource(if (Palette.dark) R.string.light_mode else R.string.dark_mode), toggleTheme)
+            IconButton(if (Palette.dark) Icons.Sun else Icons.Moon, stringResource(if (Palette.dark) R.string.light_mode else R.string.dark_mode), actions::toggleTheme)
             Spacer(Modifier.width(HeaderButtonGap.dp))
-            IconButton(Icons.Settings, stringResource(R.string.settings_title)) { open(Screen.Settings) }
+            IconButton(Icons.Settings, stringResource(R.string.settings_title)) { actions.open(Screen.Settings) }
         }
         Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.home_subtitle), style = Type.Subtitle, color = Palette.Muted)
-        notice?.let { Spacer(Modifier.height(20.dp)); Notice(stringResource(it)) }
         SectionLabel(stringResource(R.string.ip_port))
         Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.weight(1f).fillMaxHeight().clip(CardShape).background(Palette.Card).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
@@ -68,25 +75,70 @@ fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit,
                     cursorBrush = SolidColor(Palette.Accent), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 )
             }
-            AccentButton(stringResource(R.string.connect), enabled = address.isNotEmpty(), modifier = Modifier.fillMaxHeight(), onClick = wifiNotReady)
+            AccentButton(stringResource(R.string.connect), enabled = typed != null, modifier = Modifier.fillMaxHeight()) {
+                typed?.let { (host, port) -> actions.askPin(LanEditor(host, host, port, System.currentTimeMillis())) }
+            }
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModeTile(Icons.Usb, stringResource(R.string.usb), null, Modifier.weight(1f)) { open(Screen.Usb) }
-            ModeTile(Icons.Wifi, stringResource(R.string.wifi), stringResource(R.string.soon), Modifier.weight(1f), wifiNotReady)
-            ModeTile(Icons.Qr, stringResource(R.string.scan_qr), null, Modifier.weight(1f)) { open(Screen.ScanQr) }
+            ModeTile(Icons.Usb, stringResource(R.string.usb), null, Modifier.weight(1f)) { actions.open(Screen.Usb) }
+            ModeTile(Icons.Wifi, stringResource(R.string.wifi), null, Modifier.weight(1f), actions::wifiNotReady)
+            ModeTile(Icons.Qr, stringResource(R.string.scan_qr), null, Modifier.weight(1f), actions::scanQr)
         }
         SectionLabel(stringResource(R.string.devices))
-        if (offers.isEmpty()) {
+        if (app.offers.isEmpty() && app.lan.isEmpty()) {
             Column(Modifier.fillMaxWidth().clip(CardShape).border(1.dp, Palette.Line, CardShape).padding(18.dp)) {
                 Text(stringResource(R.string.no_devices_title), style = Type.CardTitle, color = Palette.Ink)
                 Spacer(Modifier.height(3.dp))
                 Text(stringResource(R.string.no_devices_body), style = Type.Caption, color = Palette.Muted)
             }
         } else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            offers.forEach { DeviceRow(it) { connect(it) } }
+            app.offers.forEach { DeviceRow(it.name, stringResource(R.string.device_ready), stringResource(R.string.usb), it.icon) { actions.connectTo(it) } }
+            app.lan.forEach { DeviceRow(it.name, stringResource(R.string.wifi_device, it.host), stringResource(R.string.wifi), null) { actions.askPin(it) } }
         }
     }
+    app.pinFor?.let { PinSheet(it, actions) }
+}
+
+// The PIN from the Handview dock, for an editor heard on Wi-Fi or typed by hand.
+@Composable
+private fun PinSheet(editor: LanEditor, actions: Actions) {
+    var pin by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(interactionSource = null, indication = null) { actions.askPin(null) }
+            .safeDrawingPadding().imePadding().padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.widthIn(max = 400.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Palette.Paper)
+                .clickable(interactionSource = null, indication = null) {}.padding(20.dp),
+        ) {
+            Text(stringResource(R.string.pin_title), style = Type.Heading, color = Palette.Ink)
+            Spacer(Modifier.height(6.dp))
+            Text(stringResource(R.string.pin_body, editor.name.ifEmpty { editor.host }), style = Type.Caption, color = Palette.Muted)
+            Spacer(Modifier.height(18.dp))
+            Box(Modifier.fillMaxWidth().height(56.dp).clip(CardShape).background(Palette.Card).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                if (pin.isEmpty()) Text("000000", style = Type.Heading.copy(letterSpacing = 6.sp), color = Palette.Faint)
+                BasicTextField(
+                    pin, { pin = it.filter(Char::isDigit).take(6) },
+                    Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,
+                    textStyle = Type.Heading.copy(color = Palette.Ink, letterSpacing = 6.sp), cursorBrush = SolidColor(Palette.Accent),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { if (pin.length == 6) actions.joinWithPin(editor, pin) }),
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(CardShape).border(1.dp, Palette.Line, CardShape).clickable(role = Role.Button) { actions.askPin(null) },
+                    contentAlignment = Alignment.Center,
+                ) { Text(stringResource(R.string.cancel).uppercase(), style = Type.Button, color = Palette.Ink) }
+                AccentButton(stringResource(R.string.join), enabled = pin.length == 6, modifier = Modifier.weight(1f).fillMaxHeight()) { actions.joinWithPin(editor, pin) }
+            }
+        }
+    }
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 @Composable
@@ -104,35 +156,33 @@ private fun ModeTile(icon: ImageVector, label: String, tag: String?, modifier: M
 }
 
 @Composable
-private fun DeviceRow(offer: SessionOffer, onClick: () -> Unit) {
+private fun DeviceRow(name: String, detail: String, tag: String, icon: java.io.File?, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(CardShape).background(Palette.Card).clickable(role = Role.Button, onClick = onClick).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Paper), contentAlignment = Alignment.Center) {
-            // Re-read when a newer offer rewrote the file.
-            val icon = remember(offer.icon, offer.atMillis) { offer.icon?.let { BitmapFactory.decodeFile(it.path) }?.asImageBitmap() }
-            if (icon != null) Image(icon, null, Modifier.fillMaxSize())
-            else Text(offer.name.firstOrNull()?.uppercase() ?: "G", style = Type.Heading, color = Palette.Accent)
+            val image = remember(icon, icon?.lastModified()) { icon?.let { BitmapFactory.decodeFile(it.path) }?.asImageBitmap() }
+            if (image != null) Image(image, null, Modifier.fillMaxSize())
+            else Text(name.firstOrNull()?.uppercase() ?: "G", style = Type.Heading, color = Palette.Accent)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(offer.name.ifEmpty { stringResource(R.string.godot_editor) }, style = Type.CardTitle, color = Palette.Ink)
+            Text(name.ifEmpty { stringResource(R.string.godot_editor) }, style = Type.CardTitle, color = Palette.Ink)
             Spacer(Modifier.height(2.dp))
-            Text(stringResource(R.string.device_ready), style = Type.Caption, color = Palette.Muted)
+            Text(detail, style = Type.Caption, color = Palette.Muted)
         }
         Spacer(Modifier.width(10.dp))
-        Tag(stringResource(R.string.usb))
+        Tag(tag)
     }
 }
 
 // ---- USB Waiting ----
 
 @Composable
-fun UsbScreen(connecting: Boolean, message: Int?, back: () -> Unit) {
+fun UsbScreen(connecting: Boolean, back: () -> Unit) {
     Page {
         ScreenHeader(stringResource(if (connecting) R.string.connecting else R.string.waiting_title), stringResource(R.string.waiting_subtitle), back)
-        message?.let { Spacer(Modifier.height(20.dp)); Notice(stringResource(it)) }
         SectionLabel(stringResource(R.string.setup))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             UsbStep(1, R.string.step_cable_title, R.string.step_cable_body, active = false)
@@ -157,37 +207,6 @@ private fun UsbStep(number: Int, title: Int, body: Int, active: Boolean) {
         val circle = Modifier.size(28.dp).clip(CircleShape)
         Box(if (active) circle.background(Palette.Accent) else circle.border(1.5.dp, Palette.Faint, CircleShape), contentAlignment = Alignment.Center) {
             Text(number.toString(), style = Type.Button, color = if (active) Palette.OnAccent else Palette.Muted)
-        }
-    }
-}
-
-// ---- Scan QR ----
-
-@Composable
-fun ScanQrScreen(back: () -> Unit, manual: () -> Unit) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp)) {
-        ScreenHeader(stringResource(R.string.scan_qr), stringResource(R.string.scan_subtitle), back)
-        Spacer(Modifier.height(24.dp))
-        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.Stage), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier.size(220.dp).drawBehind {
-                    val stroke = Stroke(width = 3.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 14f)))
-                    drawRoundRect(Palette.Paper.copy(alpha = 0.8f), style = stroke, cornerRadius = androidx.compose.ui.geometry.CornerRadius(24.dp.toPx()))
-                    drawCircle(Palette.Accent, radius = 4.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
-                },
-            )
-            Column(Modifier.align(Alignment.BottomCenter).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Tag(stringResource(R.string.soon), accent = true)
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.scan_soon), style = Type.Caption, color = Palette.Faint, textAlign = TextAlign.Center)
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Box(
-            Modifier.fillMaxWidth().height(52.dp).clip(CardShape).border(1.dp, Palette.Line, CardShape).clickable(role = Role.Button, onClick = manual),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(stringResource(R.string.enter_ip).uppercase(), style = Type.Button, color = Palette.Ink)
         }
     }
 }

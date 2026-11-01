@@ -37,7 +37,8 @@ struct ServerConfig {
     net::LogSink log{};
 };
 struct SessionEvent {
-    enum class Kind { connected, disconnected, game_disconnected, phone_error };
+    // pin_locked: too many wrong PINs; the PIN was dropped and needs replacing.
+    enum class Kind { connected, disconnected, game_disconnected, phone_error, pin_locked };
     Kind kind{};
     protocol::Hello hello{};
     protocol::ByeReason reason{protocol::ByeReason::Normal};
@@ -53,11 +54,16 @@ public:
     ~EditorServer();
     // No argument selects the first free port in 38500..38509. Zero selects an OS port.
     bool start();
-    bool start(std::uint16_t port);
+    // lan: listen on every interface (Wi-Fi sessions) instead of loopback only.
+    bool start(std::uint16_t port, bool lan = false);
     void stop();
     std::uint16_t port() const;
     std::uint16_t link_port() const;
     void set_pending_token(std::array<std::uint8_t,32> token);
+    // A second one-time token, derived from the PIN shown in the editor, for
+    // Wi-Fi phones that cannot receive the token itself. nullopt disables it.
+    // Five wrong tokens drop it and report pin_locked.
+    void set_pending_pin(std::optional<std::array<std::uint8_t,32>> pin);
     void set_link_token(std::array<std::uint8_t,32> token);
     std::optional<protocol::Command> poll_command();
     std::optional<SessionEvent> poll_event();

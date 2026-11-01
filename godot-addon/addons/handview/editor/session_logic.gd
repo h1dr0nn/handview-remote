@@ -207,6 +207,67 @@ static func serials_to_arm(ready: Array, armed: Array, arming: Array, failed: Ar
 	return result
 
 
+# ---- Wi-Fi (DECISIONS D22) -------------------------------------------------
+
+const BEACON_PORT: int = 38510
+const QR_QUIET_ZONE: int = 4
+const QR_SCALE: int = 6
+
+
+static func new_pin() -> String:
+	var bytes: PackedByteArray = Crypto.new().generate_random_bytes(4)
+	return "%06d" % (bytes.decode_u32(0) % 1000000)
+
+
+# The token a phone derives from the PIN: SHA-256 of "handview-pin:<pin>".
+static func pin_token(pin: String) -> PackedByteArray:
+	var hashing: HashingContext = HashingContext.new()
+	hashing.start(HashingContext.HASH_SHA256)
+	hashing.update(("handview-pin:" + pin).to_utf8_buffer())
+	return hashing.finish()
+
+
+# Private IPv4 addresses of this PC, the ones a phone on the LAN can reach.
+static func lan_addresses(addresses: PackedStringArray) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	for address: String in addresses:
+		var parts: PackedStringArray = address.split(".")
+		if parts.size() != 4:
+			continue
+		var a: int = parts[0].to_int()
+		var b: int = parts[1].to_int()
+		if a == 10 or (a == 192 and b == 168) or (a == 172 and b >= 16 and b <= 31):
+			result.append(address)
+	result.sort()
+	return result
+
+
+# What the QR code holds: everything the app needs to join over Wi-Fi.
+static func wifi_link(address: String, port: int, token_hex: String, name_hex: String) -> String:
+	return "handview://wifi?h=%s&p=%d&t=%s&n=%s" % [address, port, token_hex, name_hex]
+
+
+static func beacon_json(project_name: String, port: int, addresses: PackedStringArray) -> String:
+	return JSON.stringify({"handview": 1, "name": project_name.left(48), "port": port, "hosts": Array(addresses)})
+
+
+# make_qr() modules to a black on white image with a quiet zone, scaled up.
+static func qr_image(qr: Dictionary) -> Image:
+	var size: int = int(qr.get("size", 0))
+	var data: PackedByteArray = qr.get("data", PackedByteArray())
+	if size <= 0 or data.size() != size * size:
+		return null
+	var side: int = size + QR_QUIET_ZONE * 2
+	var image: Image = Image.create_empty(side, side, false, Image.FORMAT_L8)
+	image.fill(Color.WHITE)
+	for y: int in size:
+		for x: int in size:
+			if data[y * size + x] == 1:
+				image.set_pixel(x + QR_QUIET_ZONE, y + QR_QUIET_ZONE, Color.BLACK)
+	image.resize(side * QR_SCALE, side * QR_SCALE, Image.INTERPOLATE_NEAREST)
+	return image
+
+
 # Project name for the offer, hex encoded UTF-8 so adb shell quoting cannot break it.
 static func offer_name_hex(project_name: String) -> String:
 	var name: String = project_name.strip_edges()
@@ -221,8 +282,11 @@ static func session_ended_message(timed_out: bool) -> String:
 	return "The phone left. It can join again from the Handview app."
 
 
-static func loopback_json(port: int, token_hex: String) -> String:
-	return JSON.stringify({"port": port, "token": token_hex})
+static func loopback_json(port: int, token_hex: String, pin: String = "") -> String:
+	var data: Dictionary = {"port": port, "token": token_hex}
+	if not pin.is_empty():
+		data["pin"] = pin
+	return JSON.stringify(data)
 
 
 static func phone_line(info: Dictionary) -> String:

@@ -16,6 +16,9 @@ var _status: Label = null
 var _encoder: Label = null
 var _phone: Label = null
 var _dialog: ConfirmationDialog = null
+var _wifi_toggle: CheckButton = null
+var _wifi_line: Label = null
+var _wifi_qr: TextureRect = null
 
 
 func setup(controller: Controller) -> void:
@@ -55,6 +58,21 @@ func _build() -> void:
 	add_child(_encoder)
 	_phone = _make_label()
 	add_child(_phone)
+
+	add_child(HSeparator.new())
+	_wifi_toggle = CheckButton.new()
+	_wifi_toggle.text = "Allow Wi-Fi"
+	_wifi_toggle.tooltip_text = "Phones on the same network join with the code or the PIN."
+	_wifi_toggle.toggled.connect(_controller.set_wifi_enabled)
+	add_child(_wifi_toggle)
+	_wifi_line = _make_label()
+	add_child(_wifi_line)
+	_wifi_qr = TextureRect.new()
+	_wifi_qr.custom_minimum_size = Vector2(180, 180)
+	_wifi_qr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_wifi_qr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_wifi_qr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(_wifi_qr)
 
 	_dialog = ConfirmationDialog.new()
 	_dialog.title = "Replace Handview App"
@@ -104,3 +122,13 @@ func _update() -> void:
 	_encoder.visible = not _encoder.text.is_empty()
 	_phone.text = Logic.phone_line(_controller.phone_info) if _controller.is_phone_connected() else ""
 	_phone.visible = not _phone.text.is_empty()
+	_wifi_toggle.set_pressed_no_signal(_controller.wifi_enabled)
+	if _controller.wifi_enabled and _controller.wifi_addresses.is_empty():
+		_wifi_line.text = "No network found. Connect this PC to Wi-Fi or Ethernet."
+	elif _controller.wifi_enabled:
+		_wifi_line.text = "Scan with the Handview app, or enter %s:%d and PIN %s. Windows may ask to allow Godot through the firewall." % [_controller.wifi_addresses[0], _controller.get_port(), _controller.wifi_pin]
+	else:
+		_wifi_line.text = ""
+	_wifi_line.visible = not _wifi_line.text.is_empty()
+	_wifi_qr.texture = ImageTexture.create_from_image(_controller.wifi_qr) if _controller.wifi_qr != null else null
+	_wifi_qr.visible = _wifi_qr.texture != null

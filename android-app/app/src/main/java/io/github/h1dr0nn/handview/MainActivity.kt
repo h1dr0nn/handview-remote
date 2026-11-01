@@ -17,6 +17,9 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import io.github.h1dr0nn.handview.client.*
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import io.github.h1dr0nn.handview.protocol.*
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -25,6 +28,9 @@ class MainActivity : ComponentActivity(), Actions {
     private val app = MutableStateFlow(AppState())
     private lateinit var store: SettingsStore
     private lateinit var sensors: PhoneSensors
+    private lateinit var discovery: LanDiscovery
+    private var host = "127.0.0.1"
+    private var wifi = false
     private val main = Handler(Looper.getMainLooper())
     private val latency = LatencyTracker()
     private var client: SessionClient? = null
@@ -65,9 +71,11 @@ class MainActivity : ComponentActivity(), Actions {
         main.post(refresh)
         store = SettingsStore(this)
         sensors = PhoneSensors(this) { client?.sendSensor(it) }
+        discovery = LanDiscovery(this)
         app.value = AppState(settings = store.load())
         applyTheme()
         orient(Orientation.Portrait)
+        lifecycleScope.launch { discovery.editors.collect { app.value = app.value.copy(lan = it) } }
         lifecycleScope.launch {
             SessionOffers.flow(this@MainActivity).collect { offers ->
                 app.value = app.value.copy(offers = offers)
@@ -84,8 +92,27 @@ class MainActivity : ComponentActivity(), Actions {
         if (savedInstanceState == null || intent.hasExtra("token")) launch(intent)
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); launch(intent) }
-    override fun onResume() { super.onResume(); resumed = true; startSensors(); maybeAutoConnect() }
-    override fun onPause() { resumed = false; sensors.stop(); super.onPause() }
+    override fun onResume() { super.onResume(); resumed = true; discovery.start(); startSensors(); maybeAutoConnect() }
+    override fun onPause() { resumed = false; sensors.stop(); discovery.stop(); super.onPause() }
+    override fun dismissMessage() {
+        app.value = app.value.copy(notice = null)
+        state.value = state.value.copy(message = null)
+    }
+    override fun askPin(editor: LanEditor?) { app.value = app.value.copy(pinFor = editor, notice = null) }
+    override fun joinWithPin(editor: LanEditor, pin: String) {
+        app.value = app.value.copy(pinFor = null)
+        connect(WifiJoin.pinToken(pin), editor.port, editor.host)
+    }
+    override fun scanQr() {
+        val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+        GmsBarcodeScanning.getClient(this, options).startScan()
+            .addOnSuccessListener { code ->
+                val link = code.rawValue?.let(WifiJoin::parseLink)
+                if (link == null) app.value = app.value.copy(notice = R.string.scan_not_handview)
+                else connect(link.token, link.port, link.host)
+            }
+            .addOnFailureListener { app.value = app.value.copy(notice = R.string.scan_unavailable) }
+    }
     private fun startSensors() {
         val s = app.value.settings
         if (client != null && state.value.welcome != null && (s.accelerometer || s.gyroscope)) sensors.start(s.accelerometer, s.gyroscope) else sensors.stop()
@@ -126,13 +153,13 @@ class MainActivity : ComponentActivity(), Actions {
         client?.sendViewSize(view)
     }
     override fun connectTo(offer: SessionOffer) { lastTried = offer.token; connect(offer.token, offer.port) }
-    private fun connect(next: String, port: Int) {
+    private fun connect(next: String, port: Int, host: String = "127.0.0.1") {
         if (next == token) return
         closeSession()
         if (port !in 1..65535 || runCatching { SessionClient.decodeToken(next) }.isFailure) {
             state.value = CastState(message = R.string.invalid_session); return
         }
-        token = next; this.port = port; touchSeq = 0; frames = 0; fpsSince = System.nanoTime()
+        token = next; this.port = port; this.host = host; wifi = host != "127.0.0.1"; touchSeq = 0; frames = 0; fpsSince = System.nanoTime()
         state.value = CastState(connecting = true)
         val current = generation
         val display = runCatching { deviceDisplay(this) }.getOrElse { end(R.string.device_error); return }
@@ -142,7 +169,7 @@ class MainActivity : ComponentActivity(), Actions {
             main.post {
                 if (current != generation) return@post
                 val hello = greeting.getOrElse { end(R.string.device_error); return@post }
-                val session = SessionClient(port, next, hello, { received ->
+                val session = SessionClient(port, next, hello, host = host, listener = { received ->
                     val frame = (received as? SessionClient.Event.Received)?.message as? VideoFrame
                     if (frame != null) {
                         if (current == generation) decoder?.frame(frame)
@@ -180,7 +207,7 @@ class MainActivity : ComponentActivity(), Actions {
                 // The stage may have been measured before the session existed.
                 client?.sendStreamPrefs(app.value.settings.streamPrefs())
                 if (view.width > 0 && view.height > 0) client?.sendViewSize(view)
-                state.value = CastState(keyboard = app.value.settings.keyboard, welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
+                state.value = CastState(wifi = wifi, keyboard = app.value.settings.keyboard, welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
                 startSensors()
             }
@@ -227,7 +254,7 @@ class MainActivity : ComponentActivity(), Actions {
     }
     override fun command(cmd: Cmd) { client?.sendCommand(cmd) }
     override fun open(screen: Screen) { app.value = app.value.copy(screen = screen, notice = null); state.value = state.value.copy(message = null) }
-    override fun wifiNotReady() { app.value = app.value.copy(screen = Screen.Home, notice = R.string.wifi_not_ready) }
+    override fun wifiNotReady() { app.value = app.value.copy(screen = Screen.Home, notice = R.string.wifi_hint) }
     override fun change(settings: AppSettings) {
         val video = settings.streamPrefs() != app.value.settings.streamPrefs()
         store.save(settings); app.value = app.value.copy(settings = settings); applyTheme()

@@ -35,6 +35,9 @@ const ENV_LINK_TOKEN: String = "HANDVIEW_LINK_TOKEN"
 const ENV_HIDE_WINDOW: String = "HANDVIEW_HIDE_WINDOW"
 const ENV_LOOPBACK_FILE: String = "HANDVIEW_LOOPBACK_FILE"
 const ENV_LOOPBACK_AUTOSTART: String = "HANDVIEW_LOOPBACK_AUTOSTART"
+const METADATA_SECTION: String = "handview"
+const METADATA_WIFI: String = "wifi"
+const BEACON_INTERVAL_SEC: float = 2.0
 
 var devices: Array = []
 var adb_found: bool = true
@@ -43,6 +46,14 @@ var encoder_text: String = ""
 var phone_info: Dictionary = {}
 # Set by the plugin; pauses and steps the game. Null disables Pause and Step.
 var debugger: Debugger = null
+# Wi-Fi sessions (DECISIONS D22): the listener takes LAN connections, a beacon
+# announces the editor, and phones join with the QR code or the PIN.
+var wifi_enabled: bool = false
+var wifi_pin: String = ""
+var wifi_addresses: PackedStringArray = PackedStringArray()
+var wifi_qr: Image = null
+var _beacon: PacketPeerUDP = null
+var _beacon_timer: float = 0.0
 
 var _native_ok: bool = false
 # Native HandviewEditorSession. Untyped so the script parses without the library.
@@ -105,6 +116,7 @@ func start() -> void:
 	var project_name: String = str(ProjectSettings.get_setting("application/config/name", ""))
 	_project_name_hex = Logic.offer_name_hex(project_name)
 	_project_icon_b64 = _load_project_icon()
+	wifi_enabled = _remembered_wifi()
 	if _ensure_native():
 		_open_listener()
 	else:
@@ -123,6 +135,7 @@ func shutdown() -> void:
 	_embed.end_launch()
 	OS.unset_environment(ENV_HIDE_WINDOW)
 	_set_link_env(false)
+	_close_beacon()
 	if is_listening():
 		_session.call("stop")
 	for id: int in _tasks:
@@ -142,6 +155,10 @@ func is_native_available() -> bool:
 
 func is_listening() -> bool:
 	return _native_ok and bool(_session.call("is_running"))
+
+
+func get_port() -> int:
+	return _port
 
 
 func is_phone_connected() -> bool:
@@ -206,6 +223,11 @@ func process(delta: float) -> void:
 		for event: Dictionary in _session.call("poll"):
 			_handle_event(event)
 	_sync_playing()
+	if wifi_enabled and is_listening():
+		_beacon_timer -= delta
+		if _beacon_timer <= 0.0:
+			_beacon_timer = BEACON_INTERVAL_SEC
+			_send_beacon()
 
 
 # ---- Listener and tokens ---------------------------------------------------
@@ -237,7 +259,7 @@ func _open_listener() -> void:
 	if port < 0:
 		_set_status("No free port between %d and %d." % [Adb.PORT_FIRST, Adb.PORT_LAST])
 		return
-	if not bool(_session.call("start", port)):
+	if not bool(_session.call("start", port, wifi_enabled)):
 		_set_status("Could not listen on port %d." % port)
 		return
 	_port = port
@@ -260,6 +282,69 @@ func _new_token() -> void:
 	var path: String = _find_adb()
 	for serial: String in _armed.keys():
 		_spawn(_task_offer.bind(path, serial, _port, _token_hex, _project_name_hex, _project_icon_b64))
+	_update_wifi()
+
+
+# ---- Wi-Fi -----------------------------------------------------------------
+
+func set_wifi_enabled(enabled: bool) -> void:
+	if enabled == wifi_enabled:
+		return
+	wifi_enabled = enabled
+	var settings: EditorSettings = EditorInterface.get_editor_settings()
+	if settings != null:
+		settings.set_project_metadata(METADATA_SECTION, METADATA_WIFI, enabled)
+	# The listener binds again, on every interface or on loopback only. A
+	# connected phone drops and joins again.
+	if is_listening():
+		_session.call("stop")
+		_port = -1
+		_armed.clear()
+		_open_listener()
+	if not enabled:
+		_close_beacon()
+	_update_wifi()
+
+
+func _remembered_wifi() -> bool:
+	var settings: EditorSettings = EditorInterface.get_editor_settings()
+	return settings != null and bool(settings.get_project_metadata(METADATA_SECTION, METADATA_WIFI, false))
+
+
+# A new PIN and QR code for the current token, or none with Wi-Fi off.
+func _update_wifi() -> void:
+	if not wifi_enabled or not is_listening():
+		wifi_pin = ""
+		wifi_qr = null
+		wifi_addresses = PackedStringArray()
+		if is_listening():
+			_session.call("set_pending_pin", PackedByteArray())
+		state_changed.emit()
+		return
+	wifi_pin = Logic.new_pin()
+	_session.call("set_pending_pin", Logic.pin_token(wifi_pin))
+	wifi_addresses = Logic.lan_addresses(IP.get_local_addresses())
+	wifi_qr = null
+	if loopback_requested():
+		_write_loopback_file()
+	if not wifi_addresses.is_empty():
+		var qr: Dictionary = _session.call("make_qr", Logic.wifi_link(wifi_addresses[0], _port, _token_hex, _project_name_hex))
+		wifi_qr = Logic.qr_image(qr)
+	state_changed.emit()
+
+
+func _send_beacon() -> void:
+	if _beacon == null:
+		_beacon = PacketPeerUDP.new()
+		_beacon.set_broadcast_enabled(true)
+		_beacon.set_dest_address("255.255.255.255", Logic.BEACON_PORT)
+	_beacon.put_packet(Logic.beacon_json(str(ProjectSettings.get_setting("application/config/name", "")), _port, wifi_addresses).to_utf8_buffer())
+
+
+func _close_beacon() -> void:
+	if _beacon != null:
+		_beacon.close()
+		_beacon = null
 
 
 func _write_loopback_file() -> void:
@@ -267,7 +352,7 @@ func _write_loopback_file() -> void:
 	if file == null:
 		_set_status("Could not write the loopback file.")
 		return
-	file.store_string(Logic.loopback_json(_port, _token_hex))
+	file.store_string(Logic.loopback_json(_port, _token_hex, wifi_pin))
 	file.close()
 
 
@@ -477,6 +562,10 @@ func _handle_event(event: Dictionary) -> void:
 			_set_status(Logic.session_ended_message(bool(event.get("timed_out", false))))
 		"command":
 			_handle_command(int(event.get("cmd", 0)))
+		"pin_locked":
+			# Someone kept guessing: a new PIN replaces the old one.
+			_update_wifi()
+			_set_status("Too many wrong PINs. The PIN changed.")
 		"game_disconnected":
 			if Logic.game_disconnect_is_stop(EditorInterface.is_playing_scene()):
 				_sync_playing()

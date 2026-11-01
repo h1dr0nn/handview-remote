@@ -9,6 +9,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - Pause, Resume and Step from the phone on host Godot, through the editor debugger (DECISIONS D14).
 - Android app screens from the wireframes: Home, USB Waiting, Scan QR, Settings and Cast, in a warm paper style with the system font, light and dark. Settings are saved; items without a backend yet are marked Soon. Home lists the open projects with their name and icon.
 - The game fits the phone's video area: a play started from the phone resizes its hidden window to that aspect ratio, like the Game workspace's Stretch to Fit (ViewSize message, DECISIONS D19). Full Screen shows only the game; Back leaves it.
+- Wi-Fi sessions (DECISIONS D22): "Allow Wi-Fi" in the dock opens the listener to the LAN, shows a QR code and a PIN, and announces the editor with a UDP beacon. The app lists editors on the network, joins with the PIN or by scanning the code, and shows Wi-Fi in the status line.
+- Phone keyboard and motion sensors: Key and Sensor messages; the runtime injects key events and sets the accelerometer, gyroscope, gravity and magnetometer.
+- Resolution, FPS and Bitrate settings apply to the stream (StreamPrefs message).
 - `Handview.get_safe_area()` and `safe_area_changed` give a game the phone's cutout and system bar insets while it runs under Handview (DECISIONS D20).
 
 ### Changed

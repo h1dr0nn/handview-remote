@@ -3,6 +3,9 @@
 
     <!-- Loopback TCP to the host through adb reverse. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Wi-Fi sessions: hearing the editors' broadcast beacons. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <application
         android:icon="@mipmap/ic_launcher"

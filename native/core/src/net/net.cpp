@@ -30,14 +30,17 @@ Socket& Socket::operator=(Socket&& other) noexcept { if (this != &other) { close
 void Socket::close() { const auto s = value_.exchange(INVALID_SOCKET); if (s != INVALID_SOCKET) { shutdown(s, SD_BOTH); closesocket(s); } }
 std::uint16_t Socket::port() const { sockaddr_in a{}; int length = sizeof(a); return getsockname(native_handle(), reinterpret_cast<sockaddr*>(&a), &length) == 0 ? ntohs(a.sin_port) : 0; }
 bool set_nodelay(const Socket& socket) { int yes = 1; return setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&yes), sizeof(yes)) == 0; }
-Socket listen_loopback(std::uint16_t port) {
+static Socket listen_on(std::uint16_t port, bool any) {
     Socket socket{::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)};
     int yes = 1;
     setsockopt(socket.native_handle(), SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&yes), sizeof(yes));
-    const auto a = address(port);
+    auto a = address(port);
+    if (any) a.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(socket.native_handle(), reinterpret_cast<const sockaddr*>(&a), sizeof(a)) != 0 || listen(socket.native_handle(), SOMAXCONN) != 0) socket.close();
     return socket;
 }
+Socket listen_loopback(std::uint16_t port) { return listen_on(port, false); }
+Socket listen_any(std::uint16_t port) { return listen_on(port, true); }
 Socket connect_loopback(std::uint16_t port, Milliseconds timeout) {
     Socket socket{::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)};
     if (!socket) return socket;

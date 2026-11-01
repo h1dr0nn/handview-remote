@@ -17,7 +17,11 @@ add_library(handview_gdextension SHARED
     src/handview_editor_session.cpp
     src/handview_runtime.cpp
 )
-target_link_libraries(handview_gdextension PRIVATE handview::core godot::cpp)
+# Nayuki QR Code generator (MIT), for the Wi-Fi pairing code in the dock.
+add_library(handview_qrcodegen STATIC ../third_party/qrcodegen/qrcodegen.cpp)
+target_include_directories(handview_qrcodegen SYSTEM PUBLIC ../third_party/qrcodegen)
+
+target_link_libraries(handview_gdextension PRIVATE handview::core godot::cpp handview_qrcodegen)
 
 if(MSVC)
     target_compile_options(handview_gdextension PRIVATE /W4 /permissive-)

@@ -110,6 +110,16 @@ The host listens for the whole editor session and offers itself to every plugged
 
 The offer is an explicit broadcast to the app's own receiver, so no other app receives the token, and the receiver requires `android.permission.DUMP`, which only the shell and the system hold, so no other app can plant an offer. Tokens expire after their first use.
 
+### 5.1 Wi-Fi (host side)
+
+With "Allow Wi-Fi" on in the editor (DECISIONS D22):
+
+1. The listener binds every IPv4 interface instead of loopback only, on the same `PORT`.
+2. Every 2 s the editor broadcasts a UDP beacon to `255.255.255.255:38510`: `{"handview":1,"name":"<project>","port":<PORT>,"hosts":["<LAN IPv4>",...]}`. It holds no token.
+3. The dock shows a QR code with `handview://wifi?h=<LAN IPv4>&p=<PORT>&t=<64 hex token>&n=<project name, UTF-8 as hex>` and a six digit PIN. The app scans the code (Google code scanner) and joins with that token.
+4. A phone that heard a beacon, or got an address typed by hand, joins with the PIN: `Hello.token` = SHA-256 of the UTF-8 string `handview-pin:<PIN>`. The PIN token is a second one-time token next to the regular one. After five wrong tokens the host drops it and the editor shows a new PIN; a new PIN and QR code also follow every connection.
+5. Everything after `Hello` is the same as over USB.
+
 ## 6. Session
 
 ### 6.1 Handshake

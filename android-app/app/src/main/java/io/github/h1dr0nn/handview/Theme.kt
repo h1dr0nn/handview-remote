@@ -29,6 +29,9 @@ object Palette {
     val Accent get() = if (dark) Color(0xFFD9774E) else Color(0xFFC5623A)
     val OnAccent get() = if (dark) Color(0xFF1A1310) else Color(0xFFFFF8F1)
     val Live get() = if (dark) Color(0xFF79A784) else Color(0xFF4F7A5A)
+    // Toasts sit a step above the page: dark ink on paper, a raised gray in dark mode.
+    val ToastBackground get() = if (dark) Color(0xFF34302B) else Color(0xFF1F1C19)
+    val ToastText get() = if (dark) Color(0xFFF1ECE4) else Color(0xFFF4EFE7)
     // Same as the video surface before the first frame, so no edge shows around it.
     val Stage = Color(0xFF000000)
 }

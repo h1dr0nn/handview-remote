@@ -97,6 +97,9 @@ struct EditorServer::Impl {
     std::recursive_mutex handshake_mutex;
     std::mutex workers_mutex;
     std::optional<std::array<std::uint8_t,32>> token, link_token;
+    std::optional<std::array<std::uint8_t,32>> pin;
+    int pin_failures=0;
+    static constexpr int kMaxPinFailures=5;
     std::shared_ptr<Session> active;
     std::shared_ptr<Peer> game;
     std::uint32_t game_pid{};
@@ -169,7 +172,16 @@ struct EditorServer::Impl {
                 { std::lock_guard lock(mutex); own->welcome=config.host; }
                 if(BCryptGenRandom(nullptr,own->welcome.sessionId.data(),16,BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0) return false;
                 std::shared_ptr<Session> old;
-                { std::lock_guard lock(mutex); if(!token || *token!=h->token) { p->writer.send(Reject{RejectReason::BadToken}); return false; } token.reset(); old=active; }
+                {
+                    std::lock_guard lock(mutex);
+                    const bool by_token=token && *token==h->token, by_pin=pin && *pin==h->token;
+                    if(!by_token && !by_pin) {
+                        if(pin && ++pin_failures>=kMaxPinFailures) { pin.reset(); pin_failures=0; events.push({SessionEvent::Kind::pin_locked}); }
+                        p->writer.send(Reject{RejectReason::BadToken}); return false;
+                    }
+                    if(by_token) token.reset(); else { pin.reset(); pin_failures=0; }
+                    old=active;
+                }
                 if(old) finish(old,ByeReason::Replaced);
                 std::shared_ptr<Peer> g;
                 {
@@ -269,9 +281,9 @@ struct EditorServer::Impl {
 EditorServer::EditorServer(ServerConfig config) : impl_(std::make_unique<Impl>(std::move(config))) {}
 EditorServer::~EditorServer() { stop(); }
 bool EditorServer::start() { for(std::uint16_t p=38500;p<=38509;++p) if(start(p)) return true; return false; }
-bool EditorServer::start(std::uint16_t port) {
+bool EditorServer::start(std::uint16_t port, bool lan) {
     auto& i=*impl_; if(i.running) return false;
-    i.listener=net::listen_loopback(port); if(!i.listener) return false;
+    i.listener=lan?net::listen_any(port):net::listen_loopback(port); if(!i.listener) return false;
     i.link_listener=net::listen_loopback(0); if(!i.link_listener) { i.listener.close(); return false; }
     i.running=true;
     i.accept_thread=std::thread([&i] { try { i.accept_loop(false); } catch(...) {} });
@@ -321,6 +333,7 @@ void EditorServer::stop() {
 std::uint16_t EditorServer::port() const { return impl_->listener.port(); }
 std::uint16_t EditorServer::link_port() const { return impl_->link_listener.port(); }
 void EditorServer::set_pending_token(std::array<std::uint8_t,32> token) { std::lock_guard lock(impl_->mutex); impl_->token=token; }
+void EditorServer::set_pending_pin(std::optional<std::array<std::uint8_t,32>> pin) { std::lock_guard lock(impl_->mutex); impl_->pin=pin; impl_->pin_failures=0; }
 void EditorServer::set_link_token(std::array<std::uint8_t,32> token) { std::lock_guard lock(impl_->mutex); impl_->link_token=token; }
 std::optional<Command> EditorServer::poll_command() { return impl_->commands.pop(); }
 std::optional<SessionEvent> EditorServer::poll_event() { return impl_->events.pop(); }

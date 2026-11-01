@@ -40,6 +40,8 @@ private:
     std::atomic<SOCKET> value_;
 };
 Socket listen_loopback(std::uint16_t port);
+// Every IPv4 interface, for Wi-Fi sessions. Same exclusive bind as loopback.
+Socket listen_any(std::uint16_t port);
 Socket connect_loopback(std::uint16_t port, Milliseconds timeout = Milliseconds{2000});
 Socket accept(const Socket& listener, Milliseconds timeout = Milliseconds{100});
 bool set_nodelay(const Socket& socket);

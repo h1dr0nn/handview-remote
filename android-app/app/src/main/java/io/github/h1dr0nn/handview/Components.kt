@@ -11,7 +11,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -85,16 +92,25 @@ fun SectionLabel(text: String) {
     Spacer(Modifier.height(12.dp))
 }
 
+// A short message floating over the screen; it fades out on its own and
+// never moves the layout.
 @Composable
-fun Notice(text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().clip(CardShape).background(Palette.CardActive).padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(Palette.Accent))
-        Spacer(Modifier.width(12.dp))
-        Text(text, style = Type.Caption, color = Palette.Ink)
+fun Toast(text: String, modifier: Modifier = Modifier, dismiss: () -> Unit) {
+    var shown by remember(text) { mutableStateOf(false) }
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(220), label = "toast")
+    LaunchedEffect(text) {
+        shown = true
+        delay(3500)
+        shown = false
+        delay(240)
+        dismiss()
     }
+    Text(
+        text,
+        modifier.widthIn(max = 420.dp).alpha(alpha).clip(RoundedCornerShape(20.dp)).background(Palette.ToastBackground)
+            .clickable(role = Role.Button, onClick = dismiss).padding(horizontal = 18.dp, vertical = 12.dp),
+        style = Type.Caption, color = Palette.ToastText,
+    )
 }
 
 // Small outlined label, e.g. the transport of a device or "Soon".

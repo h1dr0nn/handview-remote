@@ -8,6 +8,8 @@ Play the game from your Godot editor on an Android phone. Handview streams the r
 - Multi-touch input.
 - Portrait and landscape. The game fits the phone screen, and Full Screen uses all of it.
 - No setup per session: open the project and the phone finds it.
+- USB or Wi-Fi. On Wi-Fi, join with the QR code in the dock or a PIN.
+- The phone's keyboard, accelerometer and gyroscope reach the game.
 - Touch-to-display latency shown on the phone.
 - Light and dark theme.
 
@@ -32,6 +34,8 @@ The phone app is installed for you over USB the first time you plug the phone in
 2. Open the project in Godot. The Handview dock (right side) shows the phone as "Ready".
 3. Open Handview on the phone. Your project appears under Devices and the app opens the game screen.
 4. Press Play on the phone and play with touch.
+
+Over Wi-Fi: turn on "Allow Wi-Fi" in the Handview dock (Windows may ask to allow Godot through the firewall). Then, on the phone, tap Scan QR and scan the code in the dock, or tap the project under Devices and enter the PIN shown in the dock. The phone and the PC must be on the same network.
 
 Buttons on the game screen:
 
@@ -70,11 +74,12 @@ Games run unchanged without this; only notch-aware layouts need it.
 | The project does not appear on the phone | Check that the dock shows the phone as "Ready", open the app once, then press Refresh in the dock |
 | "The installed Handview app was signed with a different key" | Choose "Uninstall and Install" in the dialog. This removes the old app and its data |
 | Black or frozen video | Update the GPU driver (NVENC needs NVIDIA driver 531 or newer), then leave the game screen and join again |
+| The project does not appear over Wi-Fi | Check that "Allow Wi-Fi" is on, that both devices are on the same network, and that Windows Firewall allows Godot on private networks. You can also type the PC address from the dock |
 | "The phone stopped responding" | Check the cable and avoid USB hubs. The phone joins again when the cable is back |
 
 ## Limitations
 
-- Windows and USB only for now. Wi-Fi, QR pairing, sensors and keyboard input are marked "Soon" in the app.
+- Windows only for now.
 - One phone plays at a time.
 - The Game workspace's own pause button does not follow Pause from the phone.
 - Projects using the Compatibility renderer or HDR 2D use a slower capture path.

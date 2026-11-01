@@ -27,13 +27,17 @@ public:
     HandviewEditorSession();
     ~HandviewEditorSession() override;
 
-    bool start(int64_t port);
+    bool start(int64_t port, bool lan = false);
     void stop();
     bool is_running() const;
     int64_t get_port() const;
     int64_t get_link_port() const;
 
     void set_pending_token(const PackedByteArray& token);
+    // 32 bytes from the PIN, or empty to turn PIN logins off.
+    void set_pending_pin(const PackedByteArray& pin);
+    // QR code for text: {"size": modules per side, "data": size*size bytes, 1 = dark}.
+    static Dictionary make_qr(const String& text);
     void set_link_token(const PackedByteArray& token);
     void set_stream_info(int64_t encoder, int64_t width, int64_t height, int64_t fps, int64_t bitrate_kbps);
 

@@ -63,6 +63,15 @@ int main(){
   CHECK(reconnect.writer.send(Bye{ByeReason::Normal})); CHECK(reconnect.receive<Bye>().has_value());
  }
  {server.set_pending_token(token); App final_app(server.port()); CHECK(final_app.writer.send(hello)); CHECK(final_app.receive<Welcome>().has_value()); final_app.writer.send(Ping{456}); auto reply=final_app.receive<Pong>(); CHECK(reply && reply->timeUs==456);}
+ // PIN logins: the PIN token works once; five wrong tokens drop it and report pin_locked.
+ while(server.poll_event()) {}
+ {std::array<std::uint8_t,32> pin{};pin[0]=9; server.set_pending_pin(pin); Hello by_pin=hello; by_pin.token=pin;
+  App pin_app(server.port()); CHECK(pin_app.writer.send(by_pin)); CHECK(pin_app.receive<Welcome>().has_value());
+  App reused(server.port()); CHECK(reused.writer.send(by_pin)); auto again=reused.receive<Reject>(); CHECK(again && again->reason==RejectReason::BadToken);
+  server.set_pending_pin(pin); Hello wrong=hello; wrong.token[0]=42;
+  for(int attempt=0;attempt<5;++attempt){App guess(server.port()); guess.writer.send(wrong); CHECK(guess.receive<Reject>().has_value());}
+  CHECK(eventually([&]{auto e=server.poll_event();return e && e->kind==session::SessionEvent::Kind::pin_locked;}));
+  App late(server.port()); late.writer.send(by_pin); CHECK(late.receive<Reject>().has_value());}
  server.stop();return test_result("session");
 }
 

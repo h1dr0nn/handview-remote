@@ -87,6 +87,10 @@ In Full Screen the video covers the phone's cutout and system bars, so a game ne
 
 The owner found the hand-drawn icons rough. The app uses `androidx.compose.material:material-icons-extended` (Rounded style, Apache 2.0). It is a large artifact, but release builds shrink it with R8 to the icons used. Status: final.
 
+## D22. Wi-Fi sessions: LAN listener, beacon, QR code and PIN
+
+The owner asked for the Phase 3 Wi-Fi flow. Options for getting the one-time token to a phone without adb: a long-lived pairing secret, an approval prompt in the editor (protocol change and a modal in the editor), or a QR code plus a short PIN. Chosen: the dock's QR code carries the address and the token; a phone that found the editor through its UDP beacon, or got the address typed in, joins with a six digit PIN whose SHA-256 ("handview-pin:<PIN>") is a second one-time token. Five wrong tokens drop the PIN and the editor shows a new one, which keeps guessing out of reach (five tries against a million values). "Allow Wi-Fi" is off by default and remembered per project, since it opens a port on the LAN; Windows asks to allow Godot through the firewall the first time. The QR code is generated in the GDExtension with Nayuki's QR Code generator (MIT, `native/third_party/qrcodegen`). The app scans with Google's code scanner (`play-services-code-scanner`), which needs no camera permission and adds little to the APK; phones without Google Play services use the IP and PIN instead. Status: final.
+
 ## D11. Versioning
 
 SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish ends at `0.3.0`. `1.0.0` is cut only after the owner publishes the app (owner decision, 2026-11-02). CHANGELOG follows Keep a Changelog. Status: final.
