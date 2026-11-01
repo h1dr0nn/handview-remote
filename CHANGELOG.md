@@ -7,18 +7,23 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - Pause, Resume and Step from the phone on host Godot, through the editor debugger (DECISIONS D14).
-- Android app screens from the wireframes: Home (Connect), USB Waiting, Scan QR, Settings and Cast, in a warm paper style with the system font. Settings are saved; items without a backend yet are marked Soon. Recently used editors are listed on Home.
+- Android app screens from the wireframes: Home, USB Waiting, Scan QR, Settings and Cast, in a warm paper style with the system font, light and dark. Settings are saved; items without a backend yet are marked Soon. Home lists the open projects with their name and icon.
+- The game fits the phone's video area: a play started from the phone resizes its hidden window to that aspect ratio, like the Game workspace's Stretch to Fit (ViewSize message, DECISIONS D19). Full Screen shows only the game; Back leaves it.
+- `Handview.get_safe_area()` and `safe_area_changed` give a game the phone's cutout and system bar insets while it runs under Handview (DECISIONS D20).
 
 ### Changed
 
 - No Start / Stop Session: the editor listens while it runs, prepares every plugged in phone and offers itself to the app, which joins on its own (DECISIONS D18). The X button only leaves the cast screen; a game started from the phone stops with it.
-- The app opens in portrait; Cast follows the stream orientation. Cast chrome is one status row and one control row so a 9:16 game fills the width.
+- The app opens on Home in portrait and joins when you tap a project; it rejoins on its own only after a dropped connection. Cast follows the stream orientation.
+- Icons use Material Symbols Rounded, and the launcher icon is new (DECISIONS D21). The app's versionCode is 3, so the addon installs the new app over older ones. Cast chrome is one status row and one control row so a 9:16 game fills the width.
 
 ### Fixed
 
 - Taps landed at the wrong place in games with stretch mode canvas_items and a window smaller than the design size.
 - The dock stayed on "native library is not available" when the addon was copied into an open editor.
-
+- Video stayed black after the decoder restarted (Full Screen, rotation, decode errors): frames dropped while waiting for an IDR were never acked, so the host stopped sending. The app acks them and RequestKeyframe resets the host's in-flight count.
+- After an adb server restart the phone could not join: reverses are checked on every refresh and set up again.
+- An editor that moved to another port showed up twice on the phone.
 - Touch-to-display never showed a value on Pixel phones: the Exynos decoder reports render times on CLOCK_BOOTTIME. Render times are now mapped onto the monotonic clock.
 
 ## [0.2.0] - 2026-11-01

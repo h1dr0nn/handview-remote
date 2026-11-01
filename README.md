@@ -49,6 +49,16 @@ Good to know:
 - Several open projects each show up under Devices.
 - The project's main scene must be set.
 
+## For game code
+
+While a game runs under Handview, `Handview.get_safe_area()` returns the phone's safe area (notch and system bars) in window pixels, and the `safe_area_changed` signal fires when it changes. Use it where you would use `DisplayServer.get_display_safe_area()`:
+
+```gdscript
+var safe: Rect2i = Handview.get_safe_area() if has_node("/root/Handview") else DisplayServer.get_display_safe_area()
+```
+
+Games run unchanged without this; only notch-aware layouts need it.
+
 ## Troubleshooting
 
 | Problem | Fix |

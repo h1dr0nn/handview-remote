@@ -75,6 +75,18 @@ On Godot 4.7.2, a project's very first editor run that exits immediately (`--imp
 
 The owner asked for a flow without Start / Stop Session: open a project with the addon and the phone sees it; Play on the PC opens the window as usual, Play on the phone runs it hidden. The editor now listens for its whole lifetime and prepares every plugged in device (app install or update, adb reverse) and hands the app a one-time token with an explicit `am broadcast` to an exported receiver guarded by `android.permission.DUMP` (only the shell and the system hold it). Options considered: keep `am start` (pops the app up on every plug in and every token change), a long-lived pairing secret (more state, no gain over USB), or the app polling the ports (any local app could answer). The app connects on its own while in front, except right after the user pressed the Disconnect button; the Auto Reconnect setting turns that off. When the phone leaves, a game it started (hidden window) is stopped, so nothing keeps running unseen on the PC. Stale reverses are removed only when no PC process listens on their port, so two editors on one PC do not break each other. This replaces SPEC section 5's launch-intent flow, which stays for test tools. Status: final.
 
+## D19. Fit phone plays to the phone's video area
+
+The owner asked for the game to fill the phone instead of keeping the project's window aspect ratio, like the Game workspace's "Stretch to Fit". The app reports the size of the area it shows the video in with a new control message, `ViewSize`, after `Welcome` and whenever the area changes (rotation, Full Screen). The editor keeps the latest one per session and relays it to the game link. A play started from the phone (hidden window) resizes its window to that aspect ratio, keeping the base width for a tall area and the base height for a wide one, so a game with stretch aspect "expand" lays out for the phone. Plays started on the PC keep their window, since the user sees it. Status: final.
+
+## D20. Safe area through the runtime, not DisplayServer
+
+In Full Screen the video covers the phone's cutout and system bars, so a game needs the phone's safe area. Scripts cannot override `DisplayServer.get_display_safe_area()`, so `ViewSize` carries the unsafe edges of the video area, and the runtime autoload scales them to the game window and exposes `Handview.get_safe_area()` (window pixels, the same convention as DisplayServer, falling back to it outside a phone play) and a `safe_area_changed` signal. Games opt in with one call. Status: final.
+
+## D21. Material Symbols for the app's icons
+
+The owner found the hand-drawn icons rough. The app uses `androidx.compose.material:material-icons-extended` (Rounded style, Apache 2.0). It is a large artifact, but release builds shrink it with R8 to the icons used. Status: final.
+
 ## D11. Versioning
 
 SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish ends at `0.3.0`. `1.0.0` is cut only after the owner publishes the app (owner decision, 2026-11-02). CHANGELOG follows Keep a Changelog. Status: final.

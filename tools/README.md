@@ -118,14 +118,15 @@ next to a 240 fps camera.
 
 1. Build the GDExtension (the commands above) so that `godot-addon/addons/handview/bin/` has the DLL.
 2. Open `godot-addon` in Godot 4.4 or newer. The Handview plugin is enabled in this project.
-3. In the Handview dock, press Start Session for the phone (or start it with the loopback variables below).
-4. Press Play on the phone and tap the screen.
+3. Plug in the phone. The dock prepares it, and the project shows up in the Handview app on the phone (or use the loopback variables below).
+4. Tap the project in the app, press Play and tap the screen.
 
 For an unattended run with the mock client, set `HANDVIEW_LOOPBACK_FILE` to a
 file path and `HANDVIEW_LOOPBACK_AUTOSTART` to `1` before starting the editor.
-The editor then starts a session by itself, lists a "Loopback (Test)" device
-and writes `{"port":...,"token":"..."}` to that file, which is what
-`handview-mock-client --loopback-file` reads.
+The editor then lists a "Loopback (Test)" device and writes
+`{"port":...,"token":"..."}` to that file (again after each connection, with
+the next token), which is what `handview-mock-client --loopback-file` reads.
+`--view WxH` makes the mock client send a ViewSize like the app's video area.
 
 ```powershell
 $env:HANDVIEW_LOOPBACK_FILE = "C:\Temp\handview-loopback.json"
