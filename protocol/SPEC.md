@@ -84,16 +84,22 @@ Field notes:
 
 `Hello.decoders[].codec` and `profile` use the same tables; an unknown profile value is a protocol error. In `Hello`, `codec` must be 1.
 
-## 5. USB launch (host side)
+## 5. USB offer (host side)
 
-1. adb comes from the Android SDK path in Godot Editor Settings, else `PATH`, else a path the user picks. Every call uses `-s <serial>`.
-2. `adb devices -l`. `unauthorized`: the dock tells the user to accept the prompt on the phone. Several devices: the user picks one; the serial is remembered.
-3. Check the app is installed and current (`pm list packages`, `dumpsys package`). Missing or older: `adb -s <serial> install -r <addon>/android/handview.apk`. Install failure: show the full adb output. Signature mismatch: ask the user before uninstalling, never uninstall silently.
-4. Generate a one-time 32 byte token. `adb -s <serial> reverse tcp:PORT tcp:PORT`, trying ports 38500 to 38509 until one is free.
-5. `adb -s <serial> shell am start -n io.github.h1dr0nn.handview/.MainActivity --es token <64 hex chars> --ei port <PORT>`. The activity is `singleTop` and reads the extras in `onCreate` and `onNewIntent`. A new token replaces the current session (`Bye{Replaced}` to the old one).
-6. Session end: `adb -s <serial> reverse --remove tcp:PORT`. On editor start, remove stale Handview reverses (ports 38500 to 38509).
+The host listens for the whole editor session and offers itself to every plugged in phone; there is no session button (DECISIONS D18).
 
-The token never travels through a broadcast and expires after its first use.
+1. adb comes from the Android SDK path in Godot Editor Settings, else `PATH`. Every call uses `-s <serial>`.
+2. On start the host listens on the first free PC port from 38500 to 38509 (`PORT`) and arms a one-time 32 byte token. Several editors on one PC get different ports.
+3. `adb devices -l` every 3 s. `unauthorized`: the dock tells the user to accept the prompt on the phone. Each device in state `device` is prepared once until it is unplugged:
+   1. Check the app is installed and current (`dumpsys package`). Missing or older: `adb -s <serial> install -r <addon>/android/handview.apk`. Install failure: show the full adb output. Signature mismatch: ask the user before uninstalling, never uninstall silently.
+   2. `adb -s <serial> reverse tcp:PORT tcp:PORT`.
+   3. Offer: `adb -s <serial> shell am broadcast -n io.github.h1dr0nn.handview/.SessionOfferReceiver -a io.github.h1dr0nn.handview.SESSION_OFFER -f 32 --es token <64 hex chars> --ei port <PORT> --es name_hex <project name, UTF-8 as hex>`. Flag 32 also reaches an app that was never opened.
+4. When a phone uses the token, the host arms a new one and offers it to every prepared device, so a phone that leaves can join again.
+5. The app keeps the newest offer per port, lists it under Devices, and connects on its own while it is in front (unless the user just left a session). `Reject{BadToken}` or a refused connection before `Welcome` drops that offer.
+6. The app also accepts `am start -n io.github.h1dr0nn.handview/.MainActivity --es token <hex> --ei port <PORT>` (`singleTop`, read in `onCreate` and `onNewIntent`); test tools use it.
+7. Editor exit: `adb -s <serial> reverse --remove tcp:PORT` for every prepared device. On start, remove Handview-range reverses whose PC port has no listener (an editor that exited without cleanup).
+
+The offer is an explicit broadcast to the app's own receiver, so no other app receives the token, and the receiver requires `android.permission.DUMP`, which only the shell and the system hold, so no other app can plant an offer. Tokens expire after their first use.
 
 ## 6. Session
 

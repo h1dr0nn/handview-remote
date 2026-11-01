@@ -1,6 +1,5 @@
 package io.github.h1dr0nn.handview
 
-import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,8 +28,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.h1dr0nn.handview.protocol.Encoder
-import io.github.h1dr0nn.handview.protocol.Host
 
 enum class Screen { Home, Usb, ScanQr, Settings }
 
@@ -45,7 +42,7 @@ private fun Page(content: @Composable ColumnScope.() -> Unit) {
 // ---- Home (Connect) ----
 
 @Composable
-fun HomeScreen(recents: List<RecentEditor>, notice: Int?, open: (Screen) -> Unit, wifiNotReady: () -> Unit) {
+fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit, connect: (SessionOffer) -> Unit, wifiNotReady: () -> Unit) {
     var address by rememberSaveable { mutableStateOf("") }
     Page {
         ScreenHeader(stringResource(R.string.home_title), stringResource(R.string.home_subtitle), back = null) {
@@ -71,14 +68,14 @@ fun HomeScreen(recents: List<RecentEditor>, notice: Int?, open: (Screen) -> Unit
             ModeTile(Icons.Qr, stringResource(R.string.scan_qr), null, Modifier.weight(1f)) { open(Screen.ScanQr) }
         }
         SectionLabel(stringResource(R.string.devices))
-        if (recents.isEmpty()) {
+        if (offers.isEmpty()) {
             Column(Modifier.fillMaxWidth().clip(CardShape).border(1.dp, Palette.Line, CardShape).padding(18.dp)) {
                 Text(stringResource(R.string.no_devices_title), style = Type.CardTitle, color = Palette.Ink)
                 Spacer(Modifier.height(3.dp))
                 Text(stringResource(R.string.no_devices_body), style = Type.Caption, color = Palette.Muted)
             }
         } else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            recents.forEach { DeviceRow(it) { open(Screen.Usb) } }
+            offers.forEach { DeviceRow(it) { connect(it) } }
         }
     }
 }
@@ -98,21 +95,19 @@ private fun ModeTile(icon: ImageVector, label: String, tag: String?, modifier: M
 }
 
 @Composable
-private fun DeviceRow(editor: RecentEditor, onClick: () -> Unit) {
+private fun DeviceRow(offer: SessionOffer, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(CardShape).background(Palette.Card).clickable(role = Role.Button, onClick = onClick).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Paper), contentAlignment = Alignment.Center) {
-            Text(if (editor.host == Host.Godot) "G" else "U", style = Type.Heading, color = Palette.Accent)
+            Text("G", style = Type.Heading, color = Palette.Accent)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(if (editor.host == Host.Godot) R.string.godot_editor else R.string.unity_editor), style = Type.CardTitle, color = Palette.Ink)
+            Text(offer.name.ifEmpty { stringResource(R.string.godot_editor) }, style = Type.CardTitle, color = Palette.Ink)
             Spacer(Modifier.height(2.dp))
-            val encoder = stringResource(when (editor.encoder) { Encoder.Nvenc -> R.string.nvenc; Encoder.MfHardware -> R.string.mf_hardware; Encoder.MfSoftware -> R.string.mf_software })
-            val ago = DateUtils.getRelativeTimeSpanString(editor.atMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
-            Text("${editor.width}x${editor.height} · $encoder · $ago", style = Type.Caption, color = Palette.Muted)
+            Text(stringResource(R.string.device_ready), style = Type.Caption, color = Palette.Muted)
         }
         Spacer(Modifier.width(10.dp))
         Tag(stringResource(R.string.usb))
@@ -219,7 +214,7 @@ fun SettingsScreen(settings: AppSettings, version: String, change: (AppSettings)
         }
         SectionLabel(stringResource(R.string.connection))
         Group {
-            SwitchRow(stringResource(R.string.auto_reconnect), stringResource(R.string.auto_reconnect_hint), settings.autoReconnect, soon = true) { change(settings.copy(autoReconnect = it)) }
+            SwitchRow(stringResource(R.string.auto_reconnect), stringResource(R.string.auto_reconnect_hint), settings.autoReconnect, soon = false) { change(settings.copy(autoReconnect = it)) }
         }
         Spacer(Modifier.height(28.dp))
         Eyebrow(stringResource(R.string.version, version), Modifier.align(Alignment.CenterHorizontally), Palette.Faint)

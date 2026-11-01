@@ -114,8 +114,6 @@ func test_device_hints() -> void:
 	_eq(Logic.device_hint("offline", true), "Reconnect the USB cable.", "offline")
 	_eq(Logic.device_hint("device", true), "", "ready")
 	_eq(Logic.device_hint("device", false), Logic.SDK_HINT, "no adb")
-	_eq(Logic.can_start("device"), true, "can start")
-	_eq(Logic.can_start("offline"), false, "cannot start")
 
 
 func test_device_list_helpers() -> void:
@@ -126,15 +124,12 @@ func test_device_list_helpers() -> void:
 	_eq(Logic.device_label(merged[1]), "Loopback (Test)", "loopback label")
 	_eq(Logic.device_label(merged[0]), "SM A528B (ABC)", "model label")
 	_eq(Logic.device_label({"serial": "XYZ", "state": "offline", "model": ""}), "XYZ, offline", "state label")
-	_eq(Logic.preselect_index(merged, "ABC"), 0, "remembered")
-	_eq(Logic.preselect_index(merged, "gone"), -1, "unknown with two")
-	_eq(Logic.preselect_index(real, "gone"), 0, "single device")
 	_eq(real.size(), 1, "input untouched")
 
 
 func test_messages() -> void:
-	_eq(Logic.session_ended_message(false), "Session ended.", "ended")
-	_eq(Logic.session_ended_message(true), "Session ended: the phone stopped responding.", "timeout")
+	_eq(Logic.session_ended_message(false), "The phone left. It can join again from the Handview app.", "ended")
+	_eq(Logic.session_ended_message(true), "The phone stopped responding. It can join again from the Handview app.", "timeout")
 	var parsed: Dictionary = JSON.parse_string(Logic.loopback_json(38500, "ab"))
 	_eq(int(parsed["port"]), 38500, "loopback port")
 	_eq(parsed["token"], "ab", "loopback token")
@@ -142,25 +137,7 @@ func test_messages() -> void:
 	_eq(Logic.phone_line({}), "", "no phone")
 
 
-func test_launch_timeout() -> void:
-	_eq(Logic.LAUNCH_TIMEOUT_SEC, 20.0, "timeout constant")
-	_eq(Logic.launch_wait_expired(true, 19.9), false, "not yet")
-	_eq(Logic.launch_wait_expired(true, 20.0), true, "at limit")
-	_eq(Logic.launch_wait_expired(true, 45.0), true, "past limit")
-	_eq(Logic.launch_wait_expired(false, 45.0), false, "phone already connected")
-	_eq(Logic.should_stop_listener_on_timeout(false), true, "stop listener without phone")
-	_eq(Logic.should_stop_listener_on_timeout(true), false, "keep listener with phone")
-	_eq(
-		Logic.LAUNCH_TIMEOUT_MESSAGE,
-		"The phone did not connect. Check the phone screen and press Start Session again.",
-		"timeout message"
-	)
-
-
-func test_launch_failed() -> void:
-	_eq(Logic.launch_failed(0, "Starting: Intent { cmp=io.github.h1dr0nn.handview/.MainActivity }"), false, "ok")
-	_eq(Logic.launch_failed(0, "Starting: Intent { }\nWarning: Activity not started, its current task has been brought to the front"), false, "warning only")
-	_eq(Logic.launch_failed(1, ""), true, "exit code")
-	_eq(Logic.launch_failed(0, "Error: Activity class {io.github/.MainActivity} does not exist."), true, "Error prefix")
-	_eq(Logic.launch_failed(0, "error: device not found"), true, "lowercase error")
-	_eq(Logic.launch_failed(0, "ERROR: closed"), true, "uppercase error")
+func test_offer_name_hex() -> void:
+	_eq(Logic.offer_name_hex("Wild Paws"), "57696c642050617773", "ascii name")
+	_eq(Logic.offer_name_hex("  "), "Godot".to_utf8_buffer().hex_encode(), "empty falls back")
+	_eq(Logic.offer_name_hex("Đường").hex_decode().get_string_from_utf8(), "Đường", "utf8 round trip")

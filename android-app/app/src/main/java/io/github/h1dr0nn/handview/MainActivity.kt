@@ -14,6 +14,8 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import io.github.h1dr0nn.handview.client.*
 import io.github.h1dr0nn.handview.protocol.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +29,12 @@ class MainActivity : ComponentActivity(), Actions {
     private var client: SessionClient? = null
     @Volatile private var decoder: VideoDecoder? = null
     private var token: String? = null
+    private var port = 0
+    // Offers connect on their own while the app is in front, except right after
+    // the user left a session; that pause ends when the app goes to the background.
+    private var autoConnect = true
+    private var resumed = false
+    private var lastTried: String? = null
     @Volatile private var generation = 0
     private var touchSeq = 0L
     private var touchReady = false
@@ -52,8 +60,14 @@ class MainActivity : ComponentActivity(), Actions {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         main.post(refresh)
         store = SettingsStore(this)
-        app.value = AppState(settings = store.load(), recents = store.recents())
+        app.value = AppState(settings = store.load())
         orient(Orientation.Portrait)
+        lifecycleScope.launch {
+            SessionOffers.flow(this@MainActivity).collect { offers ->
+                app.value = app.value.copy(offers = offers)
+                maybeAutoConnect()
+            }
+        }
         setContent {
             val ui by state.collectAsState()
             val screens by app.collectAsState()
@@ -64,17 +78,30 @@ class MainActivity : ComponentActivity(), Actions {
         if (savedInstanceState == null || intent.hasExtra("token")) launch(intent)
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); launch(intent) }
+    override fun onResume() { super.onResume(); resumed = true; maybeAutoConnect() }
+    override fun onPause() { resumed = false; super.onPause() }
+    override fun onStop() { autoConnect = true; super.onStop() }
     private fun launch(intent: Intent) {
         val next = intent.getStringExtra("token")
         intent.removeExtra("token")
         if (next == null) return
+        connect(next, intent.getIntExtra("port", 0))
+    }
+    private fun maybeAutoConnect() {
+        if (!app.value.settings.autoReconnect || !autoConnect || !resumed || client != null) return
+        val offer = app.value.offers.firstOrNull() ?: return
+        if (offer.token == token || offer.token == lastTried) return
+        lastTried = offer.token
+        connect(offer.token, offer.port)
+    }
+    override fun connectTo(offer: SessionOffer) { autoConnect = true; lastTried = offer.token; connect(offer.token, offer.port) }
+    private fun connect(next: String, port: Int) {
         if (next == token) return
-        disconnect()
-        val port = intent.getIntExtra("port", 0)
+        closeSession()
         if (port !in 1..65535 || runCatching { SessionClient.decodeToken(next) }.isFailure) {
             state.value = CastState(message = R.string.invalid_session); return
         }
-        token = next; touchSeq = 0; frames = 0; fpsSince = System.nanoTime()
+        token = next; this.port = port; touchSeq = 0; frames = 0; fpsSince = System.nanoTime()
         state.value = CastState(connecting = true)
         val current = generation
         val display = runCatching { deviceDisplay(this) }.getOrElse { end(R.string.device_error); return }
@@ -119,16 +146,19 @@ class MainActivity : ComponentActivity(), Actions {
         when (event) {
             is SessionClient.Event.Connected -> {
                 val w = event.welcome
-                app.value = app.value.copy(recents = store.remember(RecentEditor(w.host, w.encoder, w.width, w.height, System.currentTimeMillis())))
                 state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
             }
             is SessionClient.Event.Rejected -> end(when (event.reason) {
-                RejectReason.BadToken -> R.string.reject_token
+                // A stale offer (the editor restarted): forget it, a new one follows.
+                RejectReason.BadToken -> { SessionOffers.remove(this, port); R.string.reject_token }
                 RejectReason.BadVersion -> R.string.reject_version
                 RejectReason.Busy -> R.string.reject_busy
             })
-            is SessionClient.Event.Disconnected -> end(when (val reason = event.reason) {
+            // Never got a Welcome: the editor behind this offer is gone.
+            is SessionClient.Event.Disconnected -> if (state.value.welcome == null && event.reason == SessionClient.DisconnectReason.IoError) {
+                SessionOffers.remove(this, port); end(R.string.editor_unreachable)
+            } else end(when (val reason = event.reason) {
                 SessionClient.DisconnectReason.Timeout -> R.string.ended_timeout
                 SessionClient.DisconnectReason.ProtocolError -> R.string.ended_protocol
                 SessionClient.DisconnectReason.IoError -> R.string.ended_connection
@@ -163,9 +193,10 @@ class MainActivity : ComponentActivity(), Actions {
     override fun change(settings: AppSettings) { store.save(settings); app.value = app.value.copy(settings = settings) }
     override val version: String get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
     override fun surface(): SurfaceView = surfaceView()
-    // A session that ends lands on the USB screen, which shows why it ended.
-    private fun end(message: Int) { disconnect(); state.value = CastState(message = message); app.value = app.value.copy(screen = Screen.Usb) }
-    override fun disconnect() {
+    // A session that ends lands on Home, which shows why it ended.
+    private fun end(message: Int) { closeSession(); app.value = app.value.copy(screen = Screen.Home, notice = message) }
+    override fun disconnect() { autoConnect = false; closeSession(); app.value = app.value.copy(screen = Screen.Home, notice = null) }
+    private fun closeSession() {
         generation++; decoder?.close(); decoder = null
         client?.close(ByeReason.Normal); client = null; token = null
         latency.clear(); touchReady = false; state.value = CastState()
@@ -200,5 +231,5 @@ class MainActivity : ComponentActivity(), Actions {
             true
         }
     }
-    override fun onDestroy() { main.removeCallbacksAndMessages(null); disconnect(); super.onDestroy() }
+    override fun onDestroy() { main.removeCallbacksAndMessages(null); closeSession(); super.onDestroy() }
 }

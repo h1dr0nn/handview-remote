@@ -35,9 +35,6 @@ const BITRATE_MIN_KBPS: int = 2000
 const BITRATE_MAX_KBPS: int = 20000
 const DEFAULT_FPS: int = 60
 
-const LAUNCH_TIMEOUT_SEC: float = 20.0
-const LAUNCH_TIMEOUT_MESSAGE: String = "The phone did not connect. Check the phone screen and press Start Session again."
-
 const NATIVE_MISSING_MESSAGE: String = "The native library is not loaded. Restart the editor once after installing Handview."
 
 const SDK_HINT: String = "Set the Android SDK path in Editor Settings > Export > Android, or add adb to PATH."
@@ -154,10 +151,6 @@ static func device_hint(state: String, adb_found: bool) -> String:
 	return "The device is not ready (%s)." % state
 
 
-static func can_start(state: String) -> bool:
-	return state == "device"
-
-
 static func device_label(device: Dictionary) -> String:
 	var serial: String = str(device.get("serial", ""))
 	if serial == LOOPBACK_SERIAL:
@@ -184,35 +177,18 @@ static func merge_devices(devices: Array, include_loopback: bool) -> Array:
 	return result
 
 
-# Index to preselect: the remembered serial, else the only device, else -1.
-static func preselect_index(devices: Array, remembered: String) -> int:
-	for i: int in devices.size():
-		if str(devices[i].get("serial", "")) == remembered and not remembered.is_empty():
-			return i
-	if devices.size() == 1:
-		return 0
-	return -1
-
-
-# True when the launched app had LAUNCH_TIMEOUT_SEC to connect and did not.
-static func launch_wait_expired(awaiting_phone: bool, elapsed_sec: float) -> bool:
-	return awaiting_phone and elapsed_sec >= LAUNCH_TIMEOUT_SEC
-
-
-# After a launch timeout the listener stops unless a phone is still connected to it.
-static func should_stop_listener_on_timeout(phone_connected: bool) -> bool:
-	return not phone_connected
-
-
-# `am start` can exit 0 and still print an error (bad activity, device not found).
-static func launch_failed(exit_code: int, output: String) -> bool:
-	return exit_code != 0 or output.to_lower().contains("error")
+# Project name for the offer, hex encoded UTF-8 so adb shell quoting cannot break it.
+static func offer_name_hex(project_name: String) -> String:
+	var name: String = project_name.strip_edges()
+	if name.is_empty():
+		name = "Godot"
+	return name.left(48).to_utf8_buffer().hex_encode()
 
 
 static func session_ended_message(timed_out: bool) -> String:
 	if timed_out:
-		return "Session ended: the phone stopped responding."
-	return "Session ended."
+		return "The phone stopped responding. It can join again from the Handview app."
+	return "The phone left. It can join again from the Handview app."
 
 
 static func loopback_json(port: int, token_hex: String) -> String:

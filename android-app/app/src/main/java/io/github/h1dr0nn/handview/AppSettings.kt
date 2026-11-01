@@ -1,8 +1,6 @@
 package io.github.h1dr0nn.handview
 
 import android.content.Context
-import io.github.h1dr0nn.handview.protocol.Encoder
-import io.github.h1dr0nn.handview.protocol.Host
 
 enum class Resolution(val label: Int, val longSide: Int, val shortSide: Int) {
     Native(R.string.res_native, 0, 0),
@@ -23,11 +21,8 @@ data class AppSettings(
     val gyroscope: Boolean = false,
     val accelerometer: Boolean = false,
     val keyboard: Boolean = false,
-    val autoReconnect: Boolean = false,
+    val autoReconnect: Boolean = true,
 )
-
-// An editor this phone streamed from, newest first on the Home screen.
-data class RecentEditor(val host: Host, val encoder: Encoder, val width: Int, val height: Int, val atMillis: Long)
 
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("handview", Context.MODE_PRIVATE)
@@ -40,7 +35,7 @@ class SettingsStore(context: Context) {
         gyroscope = prefs.getBoolean("gyroscope", false),
         accelerometer = prefs.getBoolean("accelerometer", false),
         keyboard = prefs.getBoolean("keyboard", false),
-        autoReconnect = prefs.getBoolean("autoReconnect", false),
+        autoReconnect = prefs.getBoolean("autoReconnect", true),
     )
 
     fun save(s: AppSettings) = prefs.edit()
@@ -48,18 +43,4 @@ class SettingsStore(context: Context) {
         .putBoolean("touch", s.touch).putBoolean("gyroscope", s.gyroscope).putBoolean("accelerometer", s.accelerometer)
         .putBoolean("keyboard", s.keyboard).putBoolean("autoReconnect", s.autoReconnect)
         .apply()
-
-    fun recents(): List<RecentEditor> = prefs.getString("recents", "").orEmpty().split(';').mapNotNull { line ->
-        val f = line.split(',')
-        if (f.size != 5) return@mapNotNull null
-        runCatching {
-            RecentEditor(Host.entries.first { it.wire == f[0].toInt() }, Encoder.entries.first { it.wire == f[1].toInt() }, f[2].toInt(), f[3].toInt(), f[4].toLong())
-        }.getOrNull()
-    }
-
-    fun remember(editor: RecentEditor): List<RecentEditor> {
-        val list = (listOf(editor) + recents().filter { it.host != editor.host }).take(3)
-        prefs.edit().putString("recents", list.joinToString(";") { "${it.host.wire},${it.encoder.wire},${it.width},${it.height},${it.atMillis}" }).apply()
-        return list
-    }
 }

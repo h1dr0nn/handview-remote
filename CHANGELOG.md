@@ -11,9 +11,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- No Start / Stop Session: the editor listens while it runs, prepares every plugged in phone and offers itself to the app, which joins on its own (DECISIONS D18). The X button only leaves the cast screen; a game started from the phone stops with it.
 - The app opens in portrait; Cast follows the stream orientation. Cast chrome is one status row and one control row so a 9:16 game fills the width.
 
 ### Fixed
+
+- Taps landed at the wrong place in games with stretch mode canvas_items and a window smaller than the design size.
+- The dock stayed on "native library is not available" when the addon was copied into an open editor.
 
 - Touch-to-display never showed a value on Pixel phones: the Exynos decoder reports render times on CLOCK_BOOTTIME. Render times are now mapped onto the monotonic clock.
 

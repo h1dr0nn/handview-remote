@@ -47,19 +47,17 @@ The wire format is described in [protocol/SPEC.md](protocol/SPEC.md).
 
 ### Phone app
 
-The Handview dock installs the app over USB from the APK bundled in the addon. It does this on Start Session when the app is missing or older than the bundled one. To install it yourself, download `handview-<version>.apk` from the release and install it with `adb install`, or copy it to the phone.
+The addon installs the app over USB from the APK bundled in the addon as soon as the phone is plugged in, when the app is missing or older than the bundled one. To install it yourself, download `handview-<version>.apk` from the release and install it with `adb install`, or copy it to the phone.
 
 ## Use
 
 1. Connect the phone over USB and turn on USB debugging. Accept the USB debugging prompt on the phone.
-2. In Godot, open the Handview dock. It is a tab in the right-hand dock area. Press Refresh if the phone is not listed.
-3. Select the phone in the Devices list. A single device is selected automatically and the choice is remembered.
-4. Press Start Session. The dock shows its progress ("Preparing the phone...", "Installing the Handview app..." when needed, "Starting the Handview app...", "Waiting for the phone to connect...") and then "Connected to <model>". It also shows the encoder line and the phone's screen size.
-5. The phone opens Handview, shows "Connecting", and then the cast screen with the status line "Connected · USB · <encoder> · <fps> FPS" and the Play button.
-6. Press Play on the phone. The project's main scene must be set; otherwise the dock shows "No main scene is set in the project."
-7. Play with touch. Multi-touch is supported. The app locks the screen to portrait or landscape to match the game's aspect ratio.
-8. Press Stop on the phone to stop the game. The session stays open and you can press Play again.
-9. To end the session, press Disconnect on the phone (it returns to the "Waiting for USB Session" screen) or press Stop Session in the dock.
+2. Open the project in Godot. There is no session to start: the Handview dock (a tab in the right-hand dock area) lists the phone and prepares it on its own ("Preparing the phone...", then "Ready. Open Handview on the phone."). Press Refresh to retry a phone that failed.
+3. Open Handview on the phone. The project shows up under Devices and the app joins it on its own, then shows the cast screen with the status line "USB · <encoder> · <fps> FPS" and the transport buttons.
+4. Press Play on the phone. The project's main scene must be set; otherwise the dock shows "No main scene is set in the project."
+5. Play with touch. Multi-touch is supported. Pause, Step and Stop work from the phone too.
+6. Press Stop to stop the game. You can press Play again.
+7. The X button leaves the cast screen. A game started from the phone stops with it. The project stays under Devices; tap it to join again. Several projects open at once show up as separate devices.
 
 Window behavior on the PC:
 
@@ -101,10 +99,11 @@ Results measured on phones will be added to the release notes.
 | The device shows as "unauthorized" | Accept the USB debugging prompt on the phone. If it does not appear, unplug and reconnect the cable, or revoke USB debugging authorizations in the phone's developer options |
 | "Set the Android SDK path in Editor Settings > Export > Android, or add adb to PATH." | Handview did not find `adb`. Set the SDK path in Editor Settings > Export > Android, or add platform-tools to `PATH`, then press Refresh |
 | Installing the app fails, or "The installed Handview app was signed with a different key." | The dock shows the full adb output. For a signature mismatch it asks before uninstalling, in the "Replace Handview App" dialog. "Uninstall and Install" removes the old app and its data from the phone. "Cancel" keeps it |
-| "No free port between 38500 and 38509." | Another program or another Godot editor uses all ten ports. Close it and press Start Session again |
+| "No free port between 38500 and 38509." | Another program or other Godot editors use all ten ports. Close one; the editor tries again every few seconds |
+| The project does not show up on the phone | Check the dock: the phone must be listed as "Ready". Open the Handview app once if it was just installed, and press Refresh in the dock |
 | "No H.264 encoder found" | The dock found neither NVENC nor a Media Foundation H.264 encoder. Update the GPU driver and check that the Media Foundation H.264 encoder is installed on this Windows edition |
-| Video is black or frozen | The app asks the editor for a new keyframe by itself after a decoder error. Check the encoder line in the dock. Update the GPU driver; NVENC needs NVIDIA driver 531 or newer. Then stop and start the session |
-| "Session ended: the phone stopped responding." | The editor received nothing from the phone for 5 seconds. Check the USB cable and port, avoid hubs, and start the session again |
+| Video is black or frozen | The app asks the editor for a new keyframe by itself after a decoder error. Check the encoder line in the dock. Update the GPU driver; NVENC needs NVIDIA driver 531 or newer. Then leave the cast screen and join again |
+| "The phone stopped responding." | The editor received nothing from the phone for 5 seconds. Check the USB cable and port and avoid hubs. The phone joins again when the cable is back |
 | The game shows inside the editor | The "Embed Game on Next Play" item was not found, so the play is embedded. Turn embedding off in the Game workspace and play again |
 
 ## Build from source

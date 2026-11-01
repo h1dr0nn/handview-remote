@@ -2,8 +2,11 @@
 class_name HandviewSessionController
 extends RefCounted
 
-# Editor side session logic: device list, USB launch (SPEC section 5), phone
-# session events and Play / Pause / Step / Stop control (SPEC 6.4). Every adb call runs on a
+# Editor side session logic (DECISIONS D18). While the editor runs, the phone
+# listener stays open and every authorized device gets the Handview app,
+# an adb reverse for the session port and an offer with a one-time token
+# (SPEC section 5), so the app on the phone can join without a button press in
+# the editor. Commands follow SPEC 6.4. Every adb call runs on a
 # WorkerThreadPool task and reports back through call_deferred, so the editor
 # main thread never waits for adb. The plugin calls process() once per frame.
 
@@ -24,8 +27,6 @@ const EMBED_RESTORE_DELAY_SEC: float = 1.5
 const STREAM_FPS: int = 60
 const PAUSE_REASON_NOT_PLAYING: int = 0
 const PAUSE_REASON_PAUSED: int = 1
-const METADATA_SECTION: String = "handview"
-const METADATA_SERIAL: String = "serial"
 
 const ENV_LINK_PORT: String = "HANDVIEW_LINK_PORT"
 const ENV_LINK_TOKEN: String = "HANDVIEW_LINK_TOKEN"
@@ -35,7 +36,6 @@ const ENV_LOOPBACK_AUTOSTART: String = "HANDVIEW_LOOPBACK_AUTOSTART"
 
 var devices: Array = []
 var adb_found: bool = true
-var selected_serial: String = ""
 var status: String = ""
 var encoder_text: String = ""
 var phone_info: Dictionary = {}
@@ -49,23 +49,26 @@ var _encoder: int = -1
 var _embed: EmbedToggle = EmbedToggle.new()
 
 var _tasks: Array[int] = []
-var _generation: int = 0
-var _busy: bool = false
 var _refreshing: bool = false
 var _refresh_timer: float = 0.0
-var _phone_connected: bool = false
-# True from the launch until the phone connects: a disconnect then is the old session being replaced.
-var _awaiting_phone: bool = false
-var _active_serial: String = ""
-var _active_port: int = -1
-var _link_token_hex: String = ""
-var _pending_install: Dictionary = {}
-# Seconds since a successful launch while waiting for the phone. Negative = not running.
-var _launch_timer: float = -1.0
 var _is_shutdown: bool = false
+var _port: int = -1
+var _token_hex: String = ""
+var _link_token_hex: String = ""
+var _project_name_hex: String = ""
+# serial -> token the device was last offered.
+var _armed: Dictionary = {}
+# serial -> true while its prepare task runs.
+var _arming: Dictionary = {}
+# serial -> message of the last failed attempt; retried on Refresh or replug.
+var _failed: Dictionary = {}
+var _pending_install: Dictionary = {}
+var _phone_connected: bool = false
 
 var _editor_state: int = Logic.STATE_STOPPED
 var _playing: bool = false
+# True when the running game was started from the phone (hidden window).
+var _phone_play: bool = false
 var _hide_unset_pending: bool = false
 var _embed_timer: float = 0.0
 
@@ -96,49 +99,44 @@ func loopback_requested() -> bool:
 
 # Called once by the plugin after the dock is connected.
 func start() -> void:
-	selected_serial = _remembered_serial()
+	var project_name: String = str(ProjectSettings.get_setting("application/config/name", ""))
+	_project_name_hex = Logic.offer_name_hex(project_name)
+	if _ensure_native():
+		_open_listener()
+	else:
+		_set_status(Logic.NATIVE_MISSING_MESSAGE)
+	# After the listener, so the cleanup sees this editor's port in use.
 	_spawn(_task_cleanup_stale.bind(_find_adb()))
 	refresh_devices()
-	if not _ensure_native():
-		_set_status(Logic.NATIVE_MISSING_MESSAGE)
-		return
-	state_changed.emit()
-	# Test hook for automated end-to-end runs with tools/mock-client.
-	if OS.has_environment(ENV_LOOPBACK_FILE) and OS.get_environment(ENV_LOOPBACK_AUTOSTART) == "1":
-		start_session_for(Logic.LOOPBACK_SERIAL)
+	if loopback_requested() and is_listening():
+		_write_loopback_file()
 
 
 # Stops everything and clears what this controller changed. Blocks briefly (exit path).
 func shutdown() -> void:
 	_is_shutdown = true
-	_generation += 1
-	_launch_timer = -1.0
-	_awaiting_phone = false
 	_clear_pending_install()
 	_embed.end_launch()
 	OS.unset_environment(ENV_HIDE_WINDOW)
 	_set_link_env(false)
-	if _native_ok and bool(_session.call("is_running")):
+	if is_listening():
 		_session.call("stop")
-	if not _active_serial.is_empty() and _active_serial != Logic.LOOPBACK_SERIAL:
-		var path: String = _find_adb()
-		if not path.is_empty():
-			Adb.new(path).reverse_remove(_active_serial, _active_port)
-	_active_serial = ""
 	for id: int in _tasks:
 		WorkerThreadPool.wait_for_task_completion(id)
 	_tasks.clear()
+	var path: String = _find_adb()
+	if not path.is_empty() and _port > 0:
+		var adb: Adb = Adb.new(path)
+		for serial: String in _armed.keys():
+			adb.reverse_remove(serial, _port)
+	_armed.clear()
 
 
 func is_native_available() -> bool:
 	return _ensure_native()
 
 
-func is_busy() -> bool:
-	return _busy
-
-
-func is_session_active() -> bool:
+func is_listening() -> bool:
 	return _native_ok and bool(_session.call("is_running"))
 
 
@@ -146,26 +144,20 @@ func is_phone_connected() -> bool:
 	return _phone_connected
 
 
-func selected_state() -> String:
+# Short state of one device for the dock.
+func device_status(serial: String) -> String:
+	if serial == Logic.LOOPBACK_SERIAL:
+		return "Loopback"
 	for device: Dictionary in devices:
-		if str(device["serial"]) == selected_serial:
-			return str(device["state"])
+		if str(device["serial"]) == serial and str(device["state"]) != "device":
+			return Logic.device_hint(str(device["state"]), true)
+	if _failed.has(serial):
+		return str(_failed[serial])
+	if _arming.has(serial):
+		return "Preparing the phone..."
+	if _armed.has(serial):
+		return "Ready. Open Handview on the phone."
 	return ""
-
-
-func select_serial(serial: String) -> void:
-	selected_serial = serial
-	var settings: EditorSettings = EditorInterface.get_editor_settings()
-	if settings != null:
-		settings.set_project_metadata(METADATA_SECTION, METADATA_SERIAL, serial)
-	state_changed.emit()
-
-
-func _remembered_serial() -> String:
-	var settings: EditorSettings = EditorInterface.get_editor_settings()
-	if settings == null:
-		return ""
-	return str(settings.get_project_metadata(METADATA_SECTION, METADATA_SERIAL, ""))
 
 
 func _set_status(text: String) -> void:
@@ -196,63 +188,115 @@ func _reap_tasks() -> void:
 
 func process(delta: float) -> void:
 	_reap_tasks()
-	if _launch_timer >= 0.0:
-		_launch_timer += delta
-		if Logic.launch_wait_expired(_awaiting_phone, _launch_timer):
-			_on_launch_timeout()
 	if _hide_unset_pending:
 		_hide_unset_pending = false
 		OS.unset_environment(ENV_HIDE_WINDOW)
-	if not is_session_active():
-		_refresh_timer += delta
-		if _refresh_timer >= REFRESH_INTERVAL_SEC:
-			refresh_devices()
+	_refresh_timer += delta
+	if _refresh_timer >= REFRESH_INTERVAL_SEC:
+		refresh_devices()
 	if _embed.is_changed():
 		_embed_timer -= delta
 		if _embed_timer <= 0.0:
 			_embed.end_launch()
-	if is_session_active():
+	if is_listening():
 		for event: Dictionary in _session.call("poll"):
 			_handle_event(event)
-			if not is_session_active():
-				break
 	_sync_playing()
+
+
+# ---- Listener and tokens ---------------------------------------------------
+
+# Opens the phone listener on the first free port and arms the first token.
+func _open_listener() -> void:
+	var port: int = -1
+	for candidate: int in range(Adb.PORT_FIRST, Adb.PORT_LAST + 1):
+		if Adb.is_port_free(candidate):
+			port = candidate
+			break
+	if port < 0:
+		_set_status("No free port between %d and %d." % [Adb.PORT_FIRST, Adb.PORT_LAST])
+		return
+	if not bool(_session.call("start", port)):
+		_set_status("Could not listen on port %d." % port)
+		return
+	_port = port
+	var link_token: PackedByteArray = Crypto.new().generate_random_bytes(32)
+	_session.call("set_link_token", link_token)
+	_link_token_hex = link_token.hex_encode()
+	var width: int = int(ProjectSettings.get_setting("display/window/size/viewport_width", 1152))
+	var height: int = int(ProjectSettings.get_setting("display/window/size/viewport_height", 648))
+	var bitrate: int = Logic.default_bitrate_kbps(width, height, STREAM_FPS)
+	_session.call("set_stream_info", Logic.announced_encoder(_encoder), width, height, STREAM_FPS, bitrate)
+	_new_token()
+	_set_status("Waiting for a phone.")
+
+
+# Arms a fresh one-time token and offers it to every prepared device.
+func _new_token() -> void:
+	var token: PackedByteArray = Crypto.new().generate_random_bytes(32)
+	_session.call("set_pending_token", token)
+	_token_hex = token.hex_encode()
+	var path: String = _find_adb()
+	for serial: String in _armed.keys():
+		_spawn(_task_offer.bind(path, serial, _port, _token_hex, _project_name_hex))
+
+
+func _write_loopback_file() -> void:
+	var file: FileAccess = FileAccess.open(OS.get_environment(ENV_LOOPBACK_FILE), FileAccess.WRITE)
+	if file == null:
+		_set_status("Could not write the loopback file.")
+		return
+	file.store_string(Logic.loopback_json(_port, _token_hex))
+	file.close()
 
 
 # ---- Device list -----------------------------------------------------------
 
 func refresh_devices() -> void:
 	_refresh_timer = 0.0
+	# The library may have loaded late, or every port was taken before.
+	if not is_listening() and _ensure_native():
+		_open_listener()
 	if _refreshing:
 		return
-	if not _native_ok and _ensure_native():
-		_set_status("")
 	_refreshing = true
-	_spawn(_task_refresh.bind(_find_adb(), _generation))
+	_spawn(_task_refresh.bind(_find_adb()))
 
 
-func _task_refresh(adb_path: String, gen: int) -> void:
+# The Refresh button also retries devices whose preparation failed.
+func retry_failed() -> void:
+	_failed.clear()
+	refresh_devices()
+
+
+func _task_refresh(adb_path: String) -> void:
 	var list: Array = []
 	if not adb_path.is_empty():
 		list = Adb.new(adb_path).list_devices()
-	_on_devices.call_deferred(list, not adb_path.is_empty(), gen)
+	_on_devices.call_deferred(list, not adb_path.is_empty())
 
 
-func _on_devices(list: Array, found: bool, gen: int) -> void:
+func _on_devices(list: Array, found: bool) -> void:
 	if _is_shutdown:
 		return
 	_refreshing = false
-	if gen != _generation:
-		return
 	adb_found = found
 	devices = Logic.merge_devices(list, OS.has_environment(ENV_LOOPBACK_FILE))
-	var known: bool = false
-	for device: Dictionary in devices:
-		if str(device["serial"]) == selected_serial:
-			known = true
-	if not known:
-		var index: int = Logic.preselect_index(devices, _remembered_serial())
-		selected_serial = str(devices[index]["serial"]) if index >= 0 else ""
+	var ready: Dictionary = {}
+	for device: Dictionary in list:
+		if str(device["state"]) == "device":
+			ready[str(device["serial"])] = true
+	# Unplugged or unauthorized devices are prepared again when they come back.
+	for serial: String in _armed.keys():
+		if not ready.has(serial):
+			_armed.erase(serial)
+	for serial: String in _failed.keys():
+		if not ready.has(serial):
+			_failed.erase(serial)
+	if is_listening():
+		for serial: String in ready.keys():
+			if not _armed.has(serial) and not _arming.has(serial) and not _failed.has(serial) and _pending_install.is_empty():
+				_arm(serial, false)
 	devices_changed.emit()
 	state_changed.emit()
 
@@ -266,63 +310,28 @@ func _task_cleanup_stale(adb_path: String) -> void:
 			adb.remove_stale_reverses(str(device["serial"]))
 
 
-# ---- Start and stop --------------------------------------------------------
+# ---- Preparing a device ----------------------------------------------------
 
-func start_session_for(serial: String) -> void:
-	if _busy:
-		return
-	if not _ensure_native():
-		_set_status(Logic.NATIVE_MISSING_MESSAGE)
-		return
-	if serial == Logic.LOOPBACK_SERIAL:
-		_start_loopback()
-		return
+func _arm(serial: String, uninstall_first: bool) -> void:
 	var adb_path: String = _find_adb()
 	if adb_path.is_empty():
-		adb_found = false
-		_set_status(Logic.SDK_HINT)
 		return
-	if is_session_active() and _active_serial != serial:
-		stop_session()
-	selected_serial = serial
-	_busy = true
-	_generation += 1
-	var reuse_port: int = int(_session.call("get_port")) if is_session_active() else -1
-	var apk_global: String = ""
-	if FileAccess.file_exists(APK_PATH):
-		apk_global = ProjectSettings.globalize_path(APK_PATH)
-	_set_status("Preparing the phone...")
-	_spawn(_task_prepare.bind(adb_path, serial, apk_global, _bundled_version(), reuse_port, false, _generation))
-
-
-func stop_session() -> void:
-	_generation += 1
-	_busy = false
-	_awaiting_phone = false
-	_launch_timer = -1.0
-	_clear_pending_install()
-	var serial: String = _active_serial
-	var port: int = _active_port
-	if _native_ok and bool(_session.call("is_running")):
-		_session.call("stop")
-	_end_phone_session(serial, port)
-	_set_status(Logic.session_ended_message(false))
+	_arming[serial] = true
+	var apk_global: String = ProjectSettings.globalize_path(APK_PATH) if FileAccess.file_exists(APK_PATH) else ""
+	_spawn(_task_arm.bind(adb_path, serial, apk_global, _bundled_version(), _port, _token_hex, _project_name_hex, uninstall_first))
 
 
 # Called by the dock after the uninstall ConfirmationDialog.
 func answer_uninstall(accepted: bool) -> void:
 	if _pending_install.is_empty() or _is_shutdown:
 		return
-	var request: Dictionary = _pending_install
+	var serial: String = str(_pending_install["serial"])
 	_pending_install = {}
-	if int(request["gen"]) != _generation:
-		return
 	if not accepted:
-		_busy = false
-		_set_status("Install cancelled. Uninstall the Handview app from the phone to continue.")
+		_failed[serial] = "Install cancelled. Uninstall the Handview app from the phone, then press Refresh."
+		state_changed.emit()
 		return
-	_set_status("Replacing the Handview app...")
-	_spawn(_task_prepare.bind(request["adb_path"], request["serial"], request["apk"], request["bundled"], request["port"], true, _generation))
+	_arm(serial, true)
 
 
 # Drops an open uninstall question and tells the dock to close its dialog.
@@ -340,21 +349,10 @@ func _bundled_version() -> int:
 	return text.to_int() if text.is_valid_int() else -1
 
 
-# Worker: device state, app install, port choice.
-func _task_prepare(adb_path: String, serial: String, apk_global: String, bundled: int, reuse_port: int, uninstall_first: bool, gen: int) -> void:
+# Worker: app install or update, adb reverse, then the offer.
+func _task_arm(adb_path: String, serial: String, apk_global: String, bundled: int, port: int, token_hex: String, name_hex: String, uninstall_first: bool) -> void:
 	var adb: Adb = Adb.new(adb_path)
-	var result: Dictionary = {
-		"gen": gen, "ok": false, "message": "", "confirm": false, "output": "",
-		"serial": serial, "port": reuse_port, "adb_path": adb_path, "apk": apk_global, "bundled": bundled,
-	}
-	var state: String = ""
-	for device: Dictionary in adb.list_devices():
-		if str(device["serial"]) == serial:
-			state = str(device["state"])
-	if state != "device":
-		result["message"] = Logic.device_hint(state, true)
-		_on_prepared.call_deferred(result)
-		return
+	var result: Dictionary = {"ok": false, "message": "", "confirm": false, "output": "", "serial": serial, "token": token_hex}
 	var need_install: bool = false
 	if uninstall_first:
 		adb.uninstall(serial)
@@ -364,13 +362,12 @@ func _task_prepare(adb_path: String, serial: String, apk_global: String, bundled
 		if installed < 0:
 			if apk_global.is_empty():
 				result["message"] = "The Handview app is not installed and this addon has no bundled APK."
-				_on_prepared.call_deferred(result)
+				_on_armed.call_deferred(result)
 				return
 			need_install = true
 		elif not apk_global.is_empty() and bundled >= 0 and installed < bundled:
 			need_install = true
 	if need_install:
-		_on_install_started.call_deferred(gen)
 		var installed_result: Dictionary = adb.install(serial, apk_global)
 		if not bool(installed_result["ok"]):
 			var output: String = str(installed_result["output"])
@@ -379,177 +376,47 @@ func _task_prepare(adb_path: String, serial: String, apk_global: String, bundled
 				result["output"] = output
 			else:
 				result["message"] = "Installing the Handview app failed. adb output:\n" + output
-			_on_prepared.call_deferred(result)
+			_on_armed.call_deferred(result)
 			return
-	if reuse_port < 0:
-		var port: int = adb.pick_free_port(serial)
-		if port < 0:
-			result["message"] = "No free port between %d and %d." % [Adb.PORT_FIRST, Adb.PORT_LAST]
-			_on_prepared.call_deferred(result)
-			return
-		result["port"] = port
-	result["ok"] = true
-	_on_prepared.call_deferred(result)
-
-
-func _on_install_started(gen: int) -> void:
-	if _is_shutdown or gen != _generation:
-		return
-	_set_status("Installing the Handview app...")
-
-
-func _on_prepared(result: Dictionary) -> void:
-	if _is_shutdown or int(result["gen"]) != _generation:
-		return
-	if bool(result["confirm"]):
-		_pending_install = result
-		_set_status("The installed Handview app was signed with a different key.")
-		uninstall_requested.emit(str(result["serial"]), str(result["output"]))
-		return
-	if not bool(result["ok"]):
-		_busy = false
-		_set_status(str(result["message"]))
-		return
-	_begin_native_session(str(result["serial"]), int(result["port"]), str(result["adb_path"]))
-
-
-# Main thread: listener, tokens and stream info, then the adb launch.
-func _begin_native_session(serial: String, port: int, adb_path: String) -> void:
-	var token: String = _prepare_listener(port)
-	if token.is_empty():
-		_busy = false
-		_set_status("Could not listen on port %d." % port)
-		return
-	_active_serial = serial
-	_active_port = port
-	_awaiting_phone = true
-	_set_status("Starting the Handview app...")
-	_spawn(_task_launch.bind(adb_path, serial, port, token, _generation))
-
-
-# Starts or reuses the listener and arms a new one-time token. Returns its hex, "" on failure.
-func _prepare_listener(port: int) -> String:
-	var same_port: bool = is_session_active() and int(_session.call("get_port")) == port
-	if not same_port:
-		if is_session_active():
-			_session.call("stop")
-		if not bool(_session.call("start", port)):
-			return ""
-		var link_token: PackedByteArray = Crypto.new().generate_random_bytes(32)
-		_session.call("set_link_token", link_token)
-		_link_token_hex = link_token.hex_encode()
-	var width: int = int(ProjectSettings.get_setting("display/window/size/viewport_width", 1152))
-	var height: int = int(ProjectSettings.get_setting("display/window/size/viewport_height", 648))
-	var bitrate: int = Logic.default_bitrate_kbps(width, height, STREAM_FPS)
-	_session.call("set_stream_info", Logic.announced_encoder(_encoder), width, height, STREAM_FPS, bitrate)
-	var token: PackedByteArray = Crypto.new().generate_random_bytes(32)
-	_session.call("set_pending_token", token)
-	return token.hex_encode()
-
-
-# Worker: adb reverse, then the app launch.
-func _task_launch(adb_path: String, serial: String, port: int, token_hex: String, gen: int) -> void:
-	var adb: Adb = Adb.new(adb_path)
-	var result: Dictionary = {"gen": gen, "ok": false, "message": "", "serial": serial, "port": port, "adb_path": adb_path}
 	if not adb.reverse(serial, port):
 		result["message"] = "adb reverse failed for port %d." % port
-		_on_launched.call_deferred(result)
+		_on_armed.call_deferred(result)
 		return
-	var launched: Dictionary = adb.launch(serial, token_hex, port)
-	var output: String = str(launched["output"])
-	if Logic.launch_failed(int(launched["exit_code"]), output):
-		adb.reverse_remove(serial, port)
-		result["message"] = "Starting the Handview app failed. adb output:\n" + output
-		_on_launched.call_deferred(result)
+	var offered: Dictionary = adb.offer(serial, token_hex, port, name_hex)
+	if int(offered["exit_code"]) != 0:
+		result["message"] = "Could not reach the Handview app. adb output:\n" + str(offered["output"])
+		_on_armed.call_deferred(result)
 		return
 	result["ok"] = true
-	_on_launched.call_deferred(result)
+	_on_armed.call_deferred(result)
 
 
-func _on_launched(result: Dictionary) -> void:
+func _on_armed(result: Dictionary) -> void:
 	if _is_shutdown:
 		return
-	if int(result["gen"]) != _generation:
-		# Stopped while launching: make sure no reverse is left behind.
-		if bool(result["ok"]):
-			_spawn(_task_remove_reverse.bind(str(result["adb_path"]), str(result["serial"]), int(result["port"])))
+	var serial: String = str(result["serial"])
+	_arming.erase(serial)
+	if bool(result["confirm"]):
+		_pending_install = result
+		_failed[serial] = "The installed Handview app was signed with a different key."
+		uninstall_requested.emit(serial, str(result["output"]))
+		state_changed.emit()
 		return
-	_busy = false
-	if bool(result["ok"]):
-		# The phone may have connected already while this result was queued.
-		if _awaiting_phone:
-			_launch_timer = 0.0
-			_set_status("Waiting for the phone to connect...")
+	if not bool(result["ok"]):
+		_failed[serial] = str(result["message"])
+		state_changed.emit()
 		return
-	if is_session_active():
-		_session.call("stop")
-	_awaiting_phone = false
-	_launch_timer = -1.0
-	_active_serial = ""
-	_active_port = -1
-	_set_status(str(result["message"]))
+	_armed[serial] = str(result["token"])
+	# A phone used the token while this device was being prepared.
+	if str(result["token"]) != _token_hex:
+		_spawn(_task_offer.bind(_find_adb(), serial, _port, _token_hex, _project_name_hex))
+	state_changed.emit()
 
 
-# The launched app never connected: release what the launch took.
-func _on_launch_timeout() -> void:
-	var serial: String = _active_serial
-	var port: int = _active_port
-	_launch_timer = -1.0
-	_awaiting_phone = false
-	if Logic.should_stop_listener_on_timeout(_phone_connected) and is_session_active():
-		_session.call("stop")
-	_active_serial = ""
-	_active_port = -1
-	if not serial.is_empty():
-		_spawn(_task_remove_reverse.bind(_find_adb(), serial, port))
-	_set_status(Logic.LAUNCH_TIMEOUT_MESSAGE)
-
-
-func _start_loopback() -> void:
-	if is_session_active() and _active_serial != Logic.LOOPBACK_SERIAL:
-		stop_session()
-	var port: int = int(_session.call("get_port")) if is_session_active() else -1
-	if port < 0:
-		for candidate: int in range(Adb.PORT_FIRST, Adb.PORT_LAST + 1):
-			if Adb.is_port_free(candidate):
-				port = candidate
-				break
-	if port < 0:
-		_set_status("No free port between %d and %d." % [Adb.PORT_FIRST, Adb.PORT_LAST])
+func _task_offer(adb_path: String, serial: String, port: int, token_hex: String, name_hex: String) -> void:
+	if adb_path.is_empty():
 		return
-	var token: String = _prepare_listener(port)
-	if token.is_empty():
-		_set_status("Could not listen on port %d." % port)
-		return
-	var file: FileAccess = FileAccess.open(OS.get_environment(ENV_LOOPBACK_FILE), FileAccess.WRITE)
-	if file == null:
-		_session.call("stop")
-		_set_status("Could not write the loopback file.")
-		return
-	file.store_string(Logic.loopback_json(port, token))
-	file.close()
-	_active_serial = Logic.LOOPBACK_SERIAL
-	_active_port = port
-	_awaiting_phone = true
-	selected_serial = Logic.LOOPBACK_SERIAL
-	_set_status("Waiting for the loopback client...")
-
-
-func _task_remove_reverse(adb_path: String, serial: String, port: int) -> void:
-	if adb_path.is_empty() or serial.is_empty() or serial == Logic.LOOPBACK_SERIAL:
-		return
-	Adb.new(adb_path).reverse_remove(serial, port)
-
-
-# Clears env and the reverse after a session ended (listener handling is up to the caller).
-func _end_phone_session(serial: String, port: int) -> void:
-	_phone_connected = false
-	phone_info = {}
-	_set_link_env(false)
-	_active_serial = ""
-	_active_port = -1
-	if not serial.is_empty():
-		_spawn(_task_remove_reverse.bind(_find_adb(), serial, port))
+	Adb.new(adb_path).offer(serial, token_hex, port, name_hex)
 
 
 func _set_link_env(enabled: bool) -> void:
@@ -566,21 +433,26 @@ func _set_link_env(enabled: bool) -> void:
 func _handle_event(event: Dictionary) -> void:
 	match str(event.get("type", "")):
 		"connected":
-			_awaiting_phone = false
-			_launch_timer = -1.0
 			_phone_connected = true
 			phone_info = event
 			_set_link_env(true)
 			_session.call("send_editor_state", _editor_state)
+			# The token is used up; arm the next one for a later reconnect.
+			_new_token()
+			if loopback_requested():
+				_write_loopback_file()
 			_set_status("Connected to %s" % str(event.get("model", "")))
 		"disconnected":
-			if _awaiting_phone:
-				_phone_connected = false
-				phone_info = {}
-				state_changed.emit()
-				return
-			_end_phone_session(_active_serial, _active_port)
-			_session.call("stop")
+			_phone_connected = false
+			phone_info = {}
+			_set_link_env(false)
+			# A game started from the phone has a hidden window; nobody could see or stop it.
+			if _playing and _phone_play:
+				EditorInterface.stop_playing_scene()
+				_playing = false
+				_phone_play = false
+				_editor_state = Logic.STATE_STOPPED
+				_embed.end_launch()
 			_set_status(Logic.session_ended_message(bool(event.get("timed_out", false))))
 		"command":
 			_handle_command(int(event.get("cmd", 0)))
@@ -616,6 +488,7 @@ func _handle_command(cmd: int) -> void:
 	elif action == Logic.ACTION_STOP:
 		EditorInterface.stop_playing_scene()
 		_playing = false
+		_phone_play = false
 		_set_editor_state(Logic.STATE_STOPPED, false)
 		_embed.end_launch()
 		_session.call("send_command_result", cmd, decision["result"], _editor_state)
@@ -627,6 +500,7 @@ func _handle_command(cmd: int) -> void:
 	_session.call("send_command_result", cmd, decision["result"], _editor_state)
 
 
+# Play from the phone: no embedding and a hidden window (D6, D13).
 func _do_play() -> void:
 	OS.set_environment(ENV_HIDE_WINDOW, "1")
 	if _embed.begin_launch() and _embed.is_changed():
@@ -634,6 +508,7 @@ func _do_play() -> void:
 	EditorInterface.play_main_scene()
 	_hide_unset_pending = true
 	_playing = true
+	_phone_play = true
 	_set_editor_state(Logic.STATE_PLAYING, false)
 
 
@@ -651,9 +526,10 @@ func _sync_playing() -> void:
 	_playing = not _playing
 	_editor_state = int(transition["state"])
 	if not _playing:
+		_phone_play = false
 		_embed.end_launch()
 	if _phone_connected:
 		if bool(transition["stream_paused"]):
-			_session.call("send_stream_paused", 0)
+			_session.call("send_stream_paused", PAUSE_REASON_NOT_PLAYING)
 		_session.call("send_editor_state", _editor_state)
 	state_changed.emit()

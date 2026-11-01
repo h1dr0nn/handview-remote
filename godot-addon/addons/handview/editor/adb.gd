@@ -10,7 +10,10 @@ extends RefCounted
 const Parse := preload("adb_parse.gd")
 
 const PACKAGE: String = "io.github.h1dr0nn.handview"
-const ACTIVITY: String = "io.github.h1dr0nn.handview/.MainActivity"
+const RECEIVER: String = "io.github.h1dr0nn.handview/.SessionOfferReceiver"
+const OFFER_ACTION: String = "io.github.h1dr0nn.handview.SESSION_OFFER"
+# Intent.FLAG_INCLUDE_STOPPED_PACKAGES: reach the app even before its first launch.
+const FLAG_INCLUDE_STOPPED: String = "32"
 const PORT_FIRST: int = 38500
 const PORT_LAST: int = 38509
 const SDK_SETTING: String = "export/android/android_sdk_path"
@@ -134,31 +137,24 @@ func reverse_list(serial: String) -> PackedInt32Array:
 	return ports
 
 
-# Removes any Handview-range reverse left over from an earlier session.
+# Removes Handview-range reverses whose PC port has no listener any more (an
+# editor that exited without cleaning up). Ports of other running editors stay.
 func remove_stale_reverses(serial: String) -> void:
 	for port: int in reverse_list(serial):
-		if port >= PORT_FIRST and port <= PORT_LAST:
+		if port >= PORT_FIRST and port <= PORT_LAST and _port_free(port):
 			reverse_remove(serial, port)
 
 
-func launch(serial: String, token_hex: String, port: int) -> Dictionary:
+# Hands the app a one-time token without opening it (DECISIONS D18). The
+# receiver only accepts broadcasts from the shell.
+func offer(serial: String, token_hex: String, port: int, name_hex: String) -> Dictionary:
 	var args: PackedStringArray = PackedStringArray([
-		"shell", "am", "start", "-n", ACTIVITY,
+		"shell", "am", "broadcast", "-n", RECEIVER, "-a", OFFER_ACTION, "-f", FLAG_INCLUDE_STOPPED,
 		"--es", "token", token_hex,
 		"--ei", "port", str(port),
+		"--es", "name_hex", name_hex,
 	])
 	return _run_for(serial, args)
-
-
-# First port in the session range free on the PC and not reversed on this device. -1 if none.
-func pick_free_port(serial: String) -> int:
-	var reversed: PackedInt32Array = reverse_list(serial)
-	for port: int in range(PORT_FIRST, PORT_LAST + 1):
-		if reversed.has(port):
-			continue
-		if _port_free(port):
-			return port
-	return -1
 
 
 static func _port_free(port: int) -> bool:

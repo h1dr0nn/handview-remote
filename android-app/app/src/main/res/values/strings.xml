@@ -13,10 +13,10 @@
     <string name="soon">Soon</string>
     <string name="wifi_not_ready">Wi-Fi sessions are not available yet. Use USB for now.</string>
     <string name="devices">Devices</string>
-    <string name="no_devices_title">No Editors Yet</string>
-    <string name="no_devices_body">Editors you stream from show up here.</string>
+    <string name="no_devices_title">No Editors Found</string>
+    <string name="no_devices_body">Open a Godot project with Handview enabled and plug in this phone.</string>
+    <string name="device_ready">Ready · Tap to connect</string>
     <string name="godot_editor">Godot Editor</string>
-    <string name="unity_editor">Unity Editor</string>
     <string name="scan_subtitle">Scan the code shown in the Handview dock.</string>
     <string name="scan_soon">QR pairing comes with Wi-Fi sessions.</string>
     <string name="enter_ip">Enter IP Manually</string>
@@ -41,7 +41,7 @@
     <string name="keyboard">Keyboard</string>
     <string name="connection">Connection</string>
     <string name="auto_reconnect">Auto Reconnect</string>
-    <string name="auto_reconnect_hint">Rejoin the editor after the cable comes back.</string>
+    <string name="auto_reconnect_hint">Join an editor as soon as it is ready.</string>
     <string name="version">Handview %1$s</string>
     <string name="waiting_title">Waiting for the Editor</string>
     <string name="waiting_subtitle">Run your Godot game from the PC and play it on this phone over USB.</string>
@@ -49,10 +49,10 @@
     <string name="setup">Set Up</string>
     <string name="step_cable_title">Plug In the Phone</string>
     <string name="step_cable_body">Use a data cable and turn on USB debugging.</string>
-    <string name="step_addon_title">Open Handview in Godot</string>
-    <string name="step_addon_body">Enable the addon, then open the Handview dock.</string>
-    <string name="step_start_title">Start Session</string>
-    <string name="step_start_body">This screen switches to the game on its own.</string>
+    <string name="step_addon_title">Open the Project in Godot</string>
+    <string name="step_addon_body">Enable the Handview addon in Project Settings.</string>
+    <string name="step_start_title">Wait for the Editor</string>
+    <string name="step_start_body">The project shows up under Devices and opens here on its own.</string>
     <string name="usb_encoder_fps">USB · %1$s · %2$d FPS</string>
     <string name="touch_to_display">Touch to Display</string>
     <string name="latency_value">p50 %1$d ms · p95 %2$d ms</string>
@@ -73,6 +73,7 @@
     <string name="reject_token">The editor rejected the connection: bad token.</string>
     <string name="reject_version">The editor rejected the connection: unsupported protocol version.</string>
     <string name="reject_busy">The editor rejected the connection: editor busy.</string>
+    <string name="editor_unreachable">Could not reach the editor. Reopen the project in Godot to offer it again.</string>
     <string name="ended_connection">Session ended: the editor closed the connection.</string>
     <string name="ended_timeout">Session ended: the editor stopped responding.</string>
     <string name="ended_protocol">Session ended: a protocol error occurred.</string>

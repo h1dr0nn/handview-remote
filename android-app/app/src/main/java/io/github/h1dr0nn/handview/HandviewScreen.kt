@@ -44,13 +44,14 @@ data class CastState(
 data class AppState(
     val screen: Screen = Screen.Home,
     val settings: AppSettings = AppSettings(),
-    val recents: List<RecentEditor> = emptyList(),
+    val offers: List<SessionOffer> = emptyList(),
     val notice: Int? = null,
 )
 
 interface Actions {
     fun command(cmd: Cmd)
     fun disconnect()
+    fun connectTo(offer: SessionOffer)
     fun open(screen: Screen)
     fun wifiNotReady()
     fun change(settings: AppSettings)
@@ -70,7 +71,7 @@ fun HandviewScreen(ui: CastState, app: AppState, actions: Actions) {
             else -> {
                 if (app.screen != Screen.Home) BackHandler { actions.open(Screen.Home) }
                 when (app.screen) {
-                    Screen.Home -> HomeScreen(app.recents, app.notice, actions::open, actions::wifiNotReady)
+                    Screen.Home -> HomeScreen(app.offers, app.notice, actions::open, actions::connectTo, actions::wifiNotReady)
                     Screen.Usb -> UsbScreen(connecting = false, message = ui.message) { actions.open(Screen.Home) }
                     Screen.ScanQr -> ScanQrScreen({ actions.open(Screen.Home) }, { actions.open(Screen.Home) })
                     Screen.Settings -> SettingsScreen(app.settings, actions.version, actions::change) { actions.open(Screen.Home) }
