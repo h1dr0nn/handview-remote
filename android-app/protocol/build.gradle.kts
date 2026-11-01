@@ -11,3 +11,7 @@ kotlin {
 dependencies {
     testImplementation(libs.junit)
 }
+
+tasks.test {
+    systemProperty("handview.vectors", rootProject.file("../protocol/vectors").absolutePath)
+}

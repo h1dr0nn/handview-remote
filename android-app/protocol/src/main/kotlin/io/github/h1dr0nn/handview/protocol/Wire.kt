@@ -1,7 +1,7 @@
 package io.github.h1dr0nn.handview.protocol
 
 // Wire Format v1 framing primitives, mirror of native/core wire.hpp.
-// Full message codecs land in M1; the layout rules come from protocol/README.md.
+// Layout rules come from protocol/SPEC.md.
 
 const val PROTOCOL_VERSION: Int = 1
 
@@ -11,6 +11,7 @@ const val HEADER_SIZE: Int = 6
 enum class Channel(val maxPayload: Long) {
     CONTROL(64L * 1024),
     VIDEO(32L * 1024 * 1024),
+    LINK(64L * 1024),
 }
 
 /** [type] holds a u16, [length] holds a u32. */
@@ -34,7 +35,8 @@ fun encodeHeader(header: Header, out: ByteArray, offset: Int = 0) {
 fun decodeHeader(data: ByteArray, offset: Int, size: Int, channel: Channel): HeaderResult {
     if (size < HEADER_SIZE) return HeaderResult.NeedMore
     val header = Header(readU16(data, offset), readU32(data, offset + 2))
-    if (header.length > channel.maxPayload) return HeaderResult.TooLarge
+    val limit = if (channel == Channel.LINK && header.type == 0x0100) Channel.VIDEO.maxPayload else channel.maxPayload
+    if (header.length > limit) return HeaderResult.TooLarge
     return HeaderResult.Ok(header)
 }
 
