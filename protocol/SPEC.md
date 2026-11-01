@@ -100,7 +100,7 @@ The token never travels through a broadcast and expires after its first use.
 ### 6.1 Handshake
 
 1. App opens control, sends `Hello`.
-2. Host checks `protoVersion == 1` (else `Reject{BadVersion}`), then the token (else `Reject{BadToken}`). A second app while a session is active: `Reject{Busy}`. After `Reject` the host closes the socket.
+2. Host checks `protoVersion == 1` (else `Reject{BadVersion}`), then the token: valid only if it equals the token of the latest launch and has not been used (else `Reject{BadToken}`). A valid `Hello` while a session is active replaces that session: the old control socket gets `Bye{Replaced}` and both old sockets close. `Reject{Busy}` is for hosts that cannot take a session right now (Unity while compiling or reloading); the Godot host never sends it. After `Reject` the host closes the socket.
 3. Host sends `Welcome` with a fresh random `sessionId`. App opens video and sends `VideoAttach`. A wrong `sessionId` closes the video socket.
 
 ### 6.2 Codec and resolution
