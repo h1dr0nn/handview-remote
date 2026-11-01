@@ -63,6 +63,10 @@ Spike 3 showed Pause and Step work from an addon through `EditorDebuggerSession.
 
 The loopback link is the primary signal that the game runs (LinkHello) or ended (link closed). `EditorDebuggerSession.stopped` and `EditorInterface.is_playing_scene()` back it up. A crashing game process stays alive about 7 s while showing its crash handler; the link drop or the debugger stop then reports `EditorState{Stopped}`. Status: final.
 
+## D16. Store naming and trademark wording
+
+Research (`docs/research/naming-and-trademarks.md`) found no conflicting "Handview" app, project or software trademark. Google Play titles are limited to 30 characters and listings must not claim features that do not work yet, so the Play title is "Handview" and the short description reads "Game View remote for Godot" until the Unity Host phase ships, when it becomes "Game View remote for Godot and Unity" (the brief's subtitle). Third-party names are used only descriptively ("for Godot"), never their logos, and the README carries the trademark notice. The registry searches must be repeated by hand before the first store submission. Status: final.
+
 ## D11. Versioning
 
 SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish (first production release) at `1.0.0`. CHANGELOG follows Keep a Changelog. Status: final.

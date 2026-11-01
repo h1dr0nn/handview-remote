@@ -204,3 +204,5 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) for commit mess
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 h1dr0n.
+
+Godot and the Godot logo are trademarks of the Godot Foundation. Unity is a trademark or registered trademark of Unity Technologies or its affiliates in the U.S. and elsewhere. Handview is an independent project and is not affiliated with, sponsored by, or endorsed by either.
