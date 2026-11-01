@@ -1,22 +1,12 @@
 // Minimal self-contained test runner: no external test framework dependency.
 
 #include "handview/protocol/wire.hpp"
+#include "test_support.hpp"
 
 #include <cstdio>
 #include <cstring>
 
 namespace {
-
-int g_failures = 0;
-
-#define CHECK(expr)                                                         \
-    do {                                                                    \
-        if (!(expr)) {                                                      \
-            std::fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__,     \
-                         __LINE__, #expr);                                  \
-            ++g_failures;                                                   \
-        }                                                                   \
-    } while (0)
 
 using namespace handview::protocol;
 
@@ -84,10 +74,5 @@ int main() {
     test_little_endian_fields();
     test_seq_serial_compare();
 
-    if (g_failures != 0) {
-        std::fprintf(stderr, "%d check(s) failed\n", g_failures);
-        return 1;
-    }
-    std::printf("all wire tests passed\n");
-    return 0;
+    return test_result("wire");
 }

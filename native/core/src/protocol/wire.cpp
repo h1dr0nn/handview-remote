@@ -2,8 +2,8 @@
 
 namespace handview::protocol {
 
-std::uint32_t max_payload(Channel channel) {
-    return channel == Channel::Video ? kMaxVideoPayload : kMaxControlPayload;
+std::uint32_t max_payload(Channel channel, std::uint16_t type) {
+    return (channel == Channel::Video || (channel == Channel::Link && type == 0x0100)) ? kMaxVideoPayload : kMaxControlPayload;
 }
 
 void write_u16(std::uint8_t* out, std::uint16_t value) {
@@ -55,7 +55,7 @@ HeaderStatus decode_header(const std::uint8_t* data, std::size_t size, Channel c
     Header header;
     header.type = read_u16(data);
     header.length = read_u32(data + 2);
-    if (header.length > max_payload(channel)) {
+    if (header.length > max_payload(channel, header.type)) {
         return HeaderStatus::TooLarge;
     }
     out = header;

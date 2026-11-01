@@ -1,7 +1,6 @@
 #pragma once
 
-// Wire Format v1 framing primitives. Full message codecs land in M1; the
-// layout rules come from protocol/README.md.
+// Wire Format v1 framing primitives. See protocol/SPEC.md.
 
 #include <cstddef>
 #include <cstdint>
@@ -15,7 +14,7 @@ inline constexpr std::size_t kHeaderSize = 6;
 inline constexpr std::uint32_t kMaxControlPayload = 64u * 1024u;
 inline constexpr std::uint32_t kMaxVideoPayload = 32u * 1024u * 1024u;
 
-enum class Channel : std::uint8_t { Control, Video };
+enum class Channel : std::uint8_t { Control, Video, Link };
 
 struct Header {
     std::uint16_t type = 0;
@@ -28,7 +27,7 @@ enum class HeaderStatus : std::uint8_t {
     TooLarge,  // length over the channel limit: close with Bye{ProtocolError}
 };
 
-std::uint32_t max_payload(Channel channel);
+std::uint32_t max_payload(Channel channel, std::uint16_t type = 0);
 
 void encode_header(const Header& header, std::uint8_t* out);
 HeaderStatus decode_header(const std::uint8_t* data, std::size_t size, Channel channel, Header& out);
