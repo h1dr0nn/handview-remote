@@ -30,6 +30,13 @@ func test_stop_decisions() -> void:
 	_decide(Logic.CMD_STOP, Logic.STATE_STOPPED, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
 
 
+func test_restart_while_running() -> void:
+	_decide(Logic.CMD_RESTART, Logic.STATE_PLAYING, Logic.RESULT_OK, Logic.ACTION_RESTART)
+	_decide(Logic.CMD_RESTART, Logic.STATE_PAUSED, Logic.RESULT_OK, Logic.ACTION_RESTART)
+	_decide(Logic.CMD_RESTART, Logic.STATE_STOPPED, Logic.RESULT_IGNORED, Logic.ACTION_NONE)
+	_eq(Logic.state_after(Logic.ACTION_RESTART, Logic.STATE_PAUSED), Logic.STATE_PLAYING, "restart plays")
+
+
 func test_pause_toggles() -> void:
 	_decide(Logic.CMD_PAUSE, Logic.STATE_PLAYING, Logic.RESULT_OK, Logic.ACTION_PAUSE)
 	_decide(Logic.CMD_PAUSE, Logic.STATE_PAUSED, Logic.RESULT_OK, Logic.ACTION_RESUME)

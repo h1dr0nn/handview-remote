@@ -136,14 +136,15 @@ fun HandviewScreen(ui: CastState, app: AppState, actions: Actions) {
 private enum class Control(val cmd: Cmd, val label: Int, val icon: ImageVector) {
     Play(Cmd.Play, R.string.play, Icons.Play),
     Pause(Cmd.Pause, R.string.pause, Icons.Pause),
-    Step(Cmd.Step, R.string.step, Icons.Step),
+    // Step stays in the protocol; the cast screen offers Reload in its place.
+    Reload(Cmd.Restart, R.string.reload, Icons.Reload),
     Stop(Cmd.Stop, R.string.stop, Icons.Stop),
 }
 
 private fun enabled(ui: CastState, control: Control) = !ui.busy && when (control) {
     Control.Play -> ui.editor == EditorStateValue.Stopped
     Control.Pause, Control.Stop -> ui.editor == EditorStateValue.Playing || ui.editor == EditorStateValue.Paused
-    Control.Step -> ui.editor == EditorStateValue.Paused
+    Control.Reload -> ui.editor == EditorStateValue.Playing || ui.editor == EditorStateValue.Paused
 }
 
 @Composable

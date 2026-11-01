@@ -606,6 +606,16 @@ func _handle_command(cmd: int) -> void:
 			_session.call("send_editor_state", _editor_state)
 		state_changed.emit()
 		return
+	if action == Logic.ACTION_RESTART:
+		# Stop and start again in the same frame, so the phone never sees the
+		# play end; the new run loads the current scripts and scenes.
+		EditorInterface.stop_playing_scene()
+		_embed.end_launch()
+		_do_play()
+		_session.call("send_command_result", cmd, decision["result"], _editor_state)
+		_session.call("send_editor_state", _editor_state)
+		state_changed.emit()
+		return
 	if action == Logic.ACTION_PLAY:
 		_do_play()
 	elif action == Logic.ACTION_STOP:

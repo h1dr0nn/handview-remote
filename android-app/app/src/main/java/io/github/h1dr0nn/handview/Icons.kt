@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
@@ -23,6 +24,7 @@ object Icons {
     val Play = Material.Rounded.PlayArrow
     val Pause = Material.Rounded.Pause
     val Step = Material.Rounded.SkipNext
+    val Reload = Material.Rounded.Refresh
     val Stop = Material.Rounded.Stop
     val Close = Material.Rounded.Close
     val Check = Material.Rounded.Check

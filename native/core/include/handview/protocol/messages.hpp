@@ -19,8 +19,8 @@ enum class Orientation : std::uint8_t { Portrait = 0, Landscape = 1 };
 constexpr bool valid(Orientation value) { return value == Orientation::Portrait || value == Orientation::Landscape; }
 enum class EditorStateValue : std::uint8_t { Stopped = 0, Playing = 1, Paused = 2, Compiling = 3, Reloading = 4 };
 constexpr bool valid(EditorStateValue value) { return value == EditorStateValue::Stopped || value == EditorStateValue::Playing || value == EditorStateValue::Paused || value == EditorStateValue::Compiling || value == EditorStateValue::Reloading; }
-enum class Cmd : std::uint8_t { Play = 1, Pause = 2, Step = 3, Stop = 4 };
-constexpr bool valid(Cmd value) { return value == Cmd::Play || value == Cmd::Pause || value == Cmd::Step || value == Cmd::Stop; }
+enum class Cmd : std::uint8_t { Play = 1, Pause = 2, Step = 3, Stop = 4, Restart = 5 };
+constexpr bool valid(Cmd value) { return value >= Cmd::Play && value <= Cmd::Restart; }
 enum class Result : std::uint8_t { Ok = 0, Ignored = 1, Busy = 2 };
 constexpr bool valid(Result value) { return value == Result::Ok || value == Result::Ignored || value == Result::Busy; }
 enum class Phase : std::uint8_t { Began = 0, Moved = 1, Stationary = 2, Ended = 3, Canceled = 4 };

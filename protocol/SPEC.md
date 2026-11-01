@@ -80,7 +80,7 @@ Field notes:
 | `encoder` | 0 NVENC, 1 MF hardware, 2 MF software |
 | `orientation` | 0 Portrait, 1 Landscape |
 | `editorState` | 0 Stopped, 1 Playing, 2 Paused, 3 Compiling, 4 Reloading |
-| `cmd` | 1 Play, 2 Pause, 3 Step, 4 Stop |
+| `cmd` | 1 Play, 2 Pause, 3 Step, 4 Stop, 5 Restart |
 | `Sensor.kind` | 1 Accelerometer, 2 Gyroscope, 3 Gravity, 4 Magnetometer |
 | `result` | 0 Ok, 1 Ignored, 2 Busy |
 | touch `phase` | 0 Began, 1 Moved, 2 Stationary, 3 Ended, 4 Canceled |
@@ -147,6 +147,7 @@ With "Allow Wi-Fi" on in the editor (DECISIONS D22):
 | Pause | Playing, Paused | Toggle pause (only if supported) |
 | Step | Paused | Advance one frame (only if supported) |
 | Stop | Playing, Paused | Stop the game |
+| Restart | Playing, Paused | Stop the game and start the main scene again, picking up code and scene changes; the state stays Playing |
 
 Other states: `CommandResult{Ignored}`. Compiling or Reloading: `CommandResult{Busy}`. Unsupported command for this host: `CommandResult{Ignored}`.
 

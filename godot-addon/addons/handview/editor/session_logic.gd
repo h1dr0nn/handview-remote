@@ -9,6 +9,7 @@ const CMD_PLAY: int = 1
 const CMD_PAUSE: int = 2
 const CMD_STEP: int = 3
 const CMD_STOP: int = 4
+const CMD_RESTART: int = 5
 
 const STATE_STOPPED: int = 0
 const STATE_PLAYING: int = 1
@@ -26,6 +27,7 @@ const ACTION_STOP: String = "stop"
 const ACTION_PAUSE: String = "pause"
 const ACTION_RESUME: String = "resume"
 const ACTION_STEP: String = "step"
+const ACTION_RESTART: String = "restart"
 
 const EMBED_LABEL: String = "Embed Game on Next Play"
 const LOOPBACK_SERIAL: String = "loopback:test"
@@ -43,7 +45,7 @@ const SDK_HINT: String = "Set the Android SDK path in Editor Settings > Export >
 # Which CommandResult and which editor action a phone command gets in a state (SPEC 6.4, D14).
 # Pause toggles; Pause and Step need the editor debugger (can_pause).
 static func decide_command(cmd: int, state: int, can_play: bool = true, can_pause: bool = true) -> Dictionary:
-	if cmd < CMD_PLAY or cmd > CMD_STOP:
+	if cmd < CMD_PLAY or cmd > CMD_RESTART:
 		return {"result": RESULT_IGNORED, "action": ACTION_NONE}
 	if state == STATE_COMPILING or state == STATE_RELOADING:
 		return {"result": RESULT_BUSY, "action": ACTION_NONE}
@@ -51,6 +53,8 @@ static func decide_command(cmd: int, state: int, can_play: bool = true, can_paus
 		return {"result": RESULT_OK, "action": ACTION_PLAY}
 	if cmd == CMD_STOP and (state == STATE_PLAYING or state == STATE_PAUSED):
 		return {"result": RESULT_OK, "action": ACTION_STOP}
+	if cmd == CMD_RESTART and (state == STATE_PLAYING or state == STATE_PAUSED) and can_play:
+		return {"result": RESULT_OK, "action": ACTION_RESTART}
 	if cmd == CMD_PAUSE and state == STATE_PLAYING and can_pause:
 		return {"result": RESULT_OK, "action": ACTION_PAUSE}
 	if cmd == CMD_PAUSE and state == STATE_PAUSED and can_pause:
@@ -68,7 +72,7 @@ static func state_after(action: String, state: int) -> int:
 		return STATE_STOPPED
 	if action == ACTION_PAUSE or action == ACTION_STEP:
 		return STATE_PAUSED
-	if action == ACTION_RESUME:
+	if action == ACTION_RESUME or action == ACTION_RESTART:
 		return STATE_PLAYING
 	return state
 
