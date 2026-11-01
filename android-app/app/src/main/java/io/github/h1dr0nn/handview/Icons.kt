@@ -2,7 +2,9 @@ package io.github.h1dr0nn.handview
 
 import androidx.compose.material.icons.Icons as Material
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Keyboard
@@ -23,6 +25,8 @@ object Icons {
     val Step = Material.Rounded.SkipNext
     val Stop = Material.Rounded.Stop
     val Close = Material.Rounded.Close
+    val Check = Material.Rounded.Check
+    val Chooser = Material.Rounded.UnfoldMore
     val Expand = Material.Rounded.Fullscreen
     val Keyboard = Material.Rounded.Keyboard
     val Back = Material.AutoMirrored.Rounded.ArrowBack

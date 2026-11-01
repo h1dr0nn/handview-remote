@@ -259,7 +259,8 @@ func _open_listener() -> void:
 	if port < 0:
 		_set_status("No free port between %d and %d." % [Adb.PORT_FIRST, Adb.PORT_LAST])
 		return
-	if not bool(_session.call("start", port, wifi_enabled)):
+	var lan: bool = wifi_enabled and is_wifi_supported()
+	if not bool(_session.call("start", port, lan) if lan else _session.call("start", port)):
 		_set_status("Could not listen on port %d." % port)
 		return
 	_port = port
@@ -311,8 +312,20 @@ func _remembered_wifi() -> bool:
 	return settings != null and bool(settings.get_project_metadata(METADATA_SECTION, METADATA_WIFI, false))
 
 
+# True when the loaded native library has the Wi-Fi calls. Scripts reload on
+# their own after an update, the library only when the editor restarts.
+func is_wifi_supported() -> bool:
+	return _native_ok and _session.has_method("set_pending_pin") and _session.has_method("make_qr")
+
+
 # A new PIN and QR code for the current token, or none with Wi-Fi off.
 func _update_wifi() -> void:
+	if not is_wifi_supported():
+		wifi_pin = ""
+		wifi_qr = null
+		wifi_addresses = PackedStringArray()
+		state_changed.emit()
+		return
 	if not wifi_enabled or not is_listening():
 		wifi_pin = ""
 		wifi_qr = null

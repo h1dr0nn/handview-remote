@@ -1,5 +1,10 @@
 package io.github.h1dr0nn.handview
 
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -215,23 +220,24 @@ private fun UsbStep(number: Int, title: Int, body: Int, active: Boolean) {
 
 @Composable
 fun SettingsScreen(settings: AppSettings, version: String, change: (AppSettings) -> Unit, back: () -> Unit) {
-    var open by rememberSaveable { mutableStateOf<String?>(null) }
-    fun toggle(key: String) { open = if (open == key) null else key }
     Page {
         ScreenHeader(stringResource(R.string.settings_title), null, back)
         SectionLabel(stringResource(R.string.video))
         Group {
-            ChoiceRow(stringResource(R.string.codec), stringResource(R.string.h264), open == "codec", listOf(stringResource(R.string.h264)), 0, soon = false, onToggle = { toggle("codec") }) {}
+            ChoiceRow(stringResource(R.string.codec), stringResource(R.string.h264), listOf(stringResource(R.string.h264)), 0) {}
             GroupDivider()
-            ChoiceRow(stringResource(R.string.resolution), stringResource(settings.resolution.label), open == "res",
-                Resolution.entries.map { stringResource(it.label) }, settings.resolution.ordinal, soon = false, onToggle = { toggle("res") }) { change(settings.copy(resolution = Resolution.entries[it])); open = null }
+            ChoiceRow(stringResource(R.string.resolution), stringResource(settings.resolution.label), Resolution.entries.map { stringResource(it.label) }, settings.resolution.ordinal) {
+                change(settings.copy(resolution = Resolution.entries[it]))
+            }
             GroupDivider()
-            ChoiceRow(stringResource(R.string.fps), settings.fps.toString(), open == "fps",
-                FpsOptions.map { it.toString() }, FpsOptions.indexOf(settings.fps), soon = false, onToggle = { toggle("fps") }) { change(settings.copy(fps = FpsOptions[it])); open = null }
+            ChoiceRow(stringResource(R.string.fps), settings.fps.toString(), FpsOptions.map { it.toString() }, FpsOptions.indexOf(settings.fps)) {
+                change(settings.copy(fps = FpsOptions[it]))
+            }
             GroupDivider()
             val bitrates = BitrateOptions.map { if (it == 0) stringResource(R.string.auto) else stringResource(R.string.mbps, it / 1000) }
-            ChoiceRow(stringResource(R.string.bitrate), bitrates[BitrateOptions.indexOf(settings.bitrateKbps)], open == "bitrate",
-                bitrates, BitrateOptions.indexOf(settings.bitrateKbps), soon = false, onToggle = { toggle("bitrate") }) { change(settings.copy(bitrateKbps = BitrateOptions[it])); open = null }
+            ChoiceRow(stringResource(R.string.bitrate), bitrates[BitrateOptions.indexOf(settings.bitrateKbps)], bitrates, BitrateOptions.indexOf(settings.bitrateKbps)) {
+                change(settings.copy(bitrateKbps = BitrateOptions[it]))
+            }
         }
         SectionLabel(stringResource(R.string.input))
         Group {
@@ -253,25 +259,38 @@ fun SettingsScreen(settings: AppSettings, version: String, change: (AppSettings)
 }
 
 @Composable
-private fun ChoiceRow(label: String, value: String, expanded: Boolean, options: List<String>, selected: Int, soon: Boolean, onToggle: () -> Unit, pick: (Int) -> Unit) {
-    val enabled = options.size > 1 && !soon
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, role = Role.Button, onClick = onToggle).padding(horizontal = 18.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, Modifier.weight(1f), style = Type.CardTitle, color = Palette.Ink)
-            if (soon) { Tag(stringResource(R.string.soon)); Spacer(Modifier.width(8.dp)) }
-            Text(value.uppercase(), Modifier.clip(CircleShape).background(Palette.Paper).padding(horizontal = 12.dp, vertical = 6.dp), style = Type.Button, color = if (enabled || options.size == 1) Palette.Ink else Palette.Muted)
+private fun ChoiceRow(label: String, value: String, options: List<String>, selected: Int, pick: (Int) -> Unit) {
+    val enabled = options.size > 1
+    var open by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, role = Role.DropdownList) { open = true }.padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, Modifier.weight(1f), style = Type.CardTitle, color = Palette.Ink)
+        Box {
+            Row(Modifier.clip(CircleShape).background(Palette.Paper).padding(start = 12.dp, end = if (enabled) 6.dp else 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(value.uppercase(), style = Type.Button, color = Palette.Ink)
+                if (enabled) Icon(Icons.Chooser, null, Modifier.padding(start = 2.dp).size(18.dp), tint = Palette.Muted)
+            }
+            if (open) Dropdown(options, selected, { open = false }) { pick(it); open = false }
         }
-        if (expanded) Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    }
+}
+
+// A floating list under its anchor; it covers the page instead of pushing it.
+@Composable
+private fun Dropdown(options: List<String>, selected: Int, dismiss: () -> Unit, pick: (Int) -> Unit) {
+    val gap = with(LocalDensity.current) { 40.dp.roundToPx() }
+    Popup(alignment = Alignment.TopEnd, offset = IntOffset(0, gap), onDismissRequest = dismiss, properties = PopupProperties(focusable = true)) {
+        Column(Modifier.width(180.dp).shadow(12.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Palette.Card).border(1.dp, Palette.Line, RoundedCornerShape(16.dp)).padding(vertical = 6.dp)) {
             options.forEachIndexed { i, option ->
                 val on = i == selected
-                Box(
-                    Modifier.weight(1f).height(38.dp).clip(CircleShape).background(if (on) Palette.Accent else Palette.Paper).clickable(role = Role.RadioButton) { pick(i) },
-                    contentAlignment = Alignment.Center,
+                Row(
+                    Modifier.fillMaxWidth().height(44.dp).clickable(role = Role.RadioButton) { pick(i) }.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(option.uppercase(), style = Type.Button, color = if (on) Palette.OnAccent else Palette.Ink)
+                    Text(option, Modifier.weight(1f), style = Type.CardTitle, color = if (on) Palette.Accent else Palette.Ink)
+                    if (on) Icon(Icons.Check, null, Modifier.size(18.dp), tint = Palette.Accent)
                 }
             }
         }

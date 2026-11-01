@@ -122,8 +122,14 @@ func _update() -> void:
 	_encoder.visible = not _encoder.text.is_empty()
 	_phone.text = Logic.phone_line(_controller.phone_info) if _controller.is_phone_connected() else ""
 	_phone.visible = not _phone.text.is_empty()
+	# A dock built by an older script (the scripts reloaded after an update) has no Wi-Fi controls.
+	if _wifi_toggle == null:
+		return
 	_wifi_toggle.set_pressed_no_signal(_controller.wifi_enabled)
-	if _controller.wifi_enabled and _controller.wifi_addresses.is_empty():
+	_wifi_toggle.disabled = not _controller.is_wifi_supported()
+	if not _controller.is_wifi_supported():
+		_wifi_line.text = "Restart the editor to load the updated Handview library."
+	elif _controller.wifi_enabled and _controller.wifi_addresses.is_empty():
 		_wifi_line.text = "No network found. Connect this PC to Wi-Fi or Ethernet."
 	elif _controller.wifi_enabled:
 		_wifi_line.text = "Scan with the Handview app, or enter %s:%d and PIN %s. Windows may ask to allow Godot through the firewall." % [_controller.wifi_addresses[0], _controller.get_port(), _controller.wifi_pin]
