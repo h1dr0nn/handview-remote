@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.util.Base64
+import io.github.h1dr0nn.handview.client.OfferRules
 import io.github.h1dr0nn.handview.client.SessionClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,7 @@ object SessionOffers {
         // One editor per port, and one per project: a newer offer replaces an
         // older one from the same port or the same project (an editor that moved
         // to another port after a restart).
-        save(context, listOf(offer) + state.value.filter { it.port != offer.port && (offer.name.isEmpty() || it.name != offer.name) })
+        save(context, OfferRules.add(state.value, offer, SessionOffer::port, SessionOffer::name))
     }
 
     @Synchronized fun remove(context: Context, port: Int) {
@@ -43,7 +44,7 @@ object SessionOffers {
             val f = (value as? String)?.split('\n') ?: return@mapNotNull null
             if (f.size !in 4..5) return@mapNotNull null
             runCatching { SessionOffer(f[0].toInt(), f[1], f[2], f[3].toLong(), f.getOrNull(4)?.let(::File)?.takeIf { it.isFile }) }.getOrNull()
-        }.sortedByDescending { it.atMillis }.distinctBy { it.name.ifEmpty { "port ${it.port}" } }
+        }.sortedByDescending { it.atMillis }.let { OfferRules.distinct(it, SessionOffer::port, SessionOffer::name) }
     }
 
     private fun save(context: Context, offers: List<SessionOffer>) {

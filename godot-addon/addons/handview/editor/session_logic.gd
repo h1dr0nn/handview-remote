@@ -177,6 +177,36 @@ static func merge_devices(devices: Array, include_loopback: bool) -> Array:
 	return result
 
 
+# Serials adb reports as usable ("device").
+static func ready_serials(devices: Array) -> Array:
+	var result: Array = []
+	for device: Dictionary in devices:
+		if str(device.get("state", "")) == "device":
+			result.append(str(device.get("serial", "")))
+	return result
+
+
+# Prepared devices to prepare again: unplugged or unauthorized ones, and ones
+# whose reverse for `port` is gone (an adb server restart drops all of them).
+# `reverses` maps a serial to its reversed ports; serials missing from it were
+# not checked and are kept.
+static func armed_to_drop(armed: Array, ready: Array, reverses: Dictionary, port: int) -> Array:
+	var result: Array = []
+	for serial: String in armed:
+		if not ready.has(serial) or (reverses.has(serial) and not (reverses[serial] as PackedInt32Array).has(port)):
+			result.append(serial)
+	return result
+
+
+# Usable devices that are neither prepared, being prepared, nor failed.
+static func serials_to_arm(ready: Array, armed: Array, arming: Array, failed: Array) -> Array:
+	var result: Array = []
+	for serial: String in ready:
+		if not armed.has(serial) and not arming.has(serial) and not failed.has(serial):
+			result.append(serial)
+	return result
+
+
 # Project name for the offer, hex encoded UTF-8 so adb shell quoting cannot break it.
 static func offer_name_hex(project_name: String) -> String:
 	var name: String = project_name.strip_edges()

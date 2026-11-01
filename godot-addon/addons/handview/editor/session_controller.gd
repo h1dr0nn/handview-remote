@@ -309,22 +309,15 @@ func _on_devices(list: Array, found: bool, reverses: Dictionary) -> void:
 	_refreshing = false
 	adb_found = found
 	devices = Logic.merge_devices(list, OS.has_environment(ENV_LOOPBACK_FILE))
-	var ready: Dictionary = {}
-	for device: Dictionary in list:
-		if str(device["state"]) == "device":
-			ready[str(device["serial"])] = true
-	# Unplugged or unauthorized devices are prepared again when they come back,
-	# and so are devices whose reverse is gone (an adb server restart drops all).
-	for serial: String in _armed.keys():
-		if not ready.has(serial) or (reverses.has(serial) and not (reverses[serial] as PackedInt32Array).has(_port)):
-			_armed.erase(serial)
+	var ready: Array = Logic.ready_serials(list)
+	for serial: String in Logic.armed_to_drop(_armed.keys(), ready, reverses, _port):
+		_armed.erase(serial)
 	for serial: String in _failed.keys():
 		if not ready.has(serial):
 			_failed.erase(serial)
-	if is_listening():
-		for serial: String in ready.keys():
-			if not _armed.has(serial) and not _arming.has(serial) and not _failed.has(serial) and _pending_install.is_empty():
-				_arm(serial, false)
+	if is_listening() and _pending_install.is_empty():
+		for serial: String in Logic.serials_to_arm(ready, _armed.keys(), _arming.keys(), _failed.keys()):
+			_arm(serial, false)
 	devices_changed.emit()
 	state_changed.emit()
 

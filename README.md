@@ -54,7 +54,8 @@ Good to know:
 While a game runs under Handview, `Handview.get_safe_area()` returns the phone's safe area (notch and system bars) in window pixels, and the `safe_area_changed` signal fires when it changes. Use it where you would use `DisplayServer.get_display_safe_area()`:
 
 ```gdscript
-var safe: Rect2i = Handview.get_safe_area() if has_node("/root/Handview") else DisplayServer.get_display_safe_area()
+var handview: Node = get_node_or_null("/root/Handview")
+var safe: Rect2i = handview.get_safe_area() if handview else DisplayServer.get_display_safe_area()
 ```
 
 Games run unchanged without this; only notch-aware layouts need it.

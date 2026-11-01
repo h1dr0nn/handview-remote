@@ -148,6 +148,10 @@ func remove_stale_reverses(serial: String) -> void:
 # Hands the app a one-time token without opening it (DECISIONS D18). The
 # receiver only accepts broadcasts from the shell.
 func offer(serial: String, token_hex: String, port: int, name_hex: String, icon_b64: String = "") -> Dictionary:
+	return _run_for(serial, offer_args(token_hex, port, name_hex, icon_b64))
+
+
+static func offer_args(token_hex: String, port: int, name_hex: String, icon_b64: String = "") -> PackedStringArray:
 	var args: PackedStringArray = PackedStringArray([
 		"shell", "am", "broadcast", "-n", RECEIVER, "-a", OFFER_ACTION, "-f", FLAG_INCLUDE_STOPPED,
 		"--es", "token", token_hex,
@@ -156,7 +160,7 @@ func offer(serial: String, token_hex: String, port: int, name_hex: String, icon_
 	])
 	if not icon_b64.is_empty():
 		args.append_array(PackedStringArray(["--es", "icon_b64", icon_b64]))
-	return _run_for(serial, args)
+	return args
 
 
 static func _port_free(port: int) -> bool:
