@@ -90,9 +90,13 @@ void HandviewEditorSession::set_pending_token(const PackedByteArray& token) {
 
 void HandviewEditorSession::set_pending_pin(const PackedByteArray& pin) {
     if (!server_) return;
+    // Empty turns PIN logins off; anything else must be a 32 byte token.
+    if (pin.is_empty()) {
+        server_->set_pending_pin(std::nullopt);
+        return;
+    }
     std::array<std::uint8_t, 32> value{};
     if (to_token(pin, value)) server_->set_pending_pin(value);
-    else server_->set_pending_pin(std::nullopt);
 }
 
 Dictionary HandviewEditorSession::make_qr(const String& text) {
