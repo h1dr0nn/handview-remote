@@ -18,3 +18,4 @@ rootProject.name = "handview"
 
 include(":app")
 include(":protocol")
+include(":client")
