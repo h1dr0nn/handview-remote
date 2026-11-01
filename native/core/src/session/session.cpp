@@ -98,7 +98,11 @@ struct EditorServer::Impl {
     std::shared_ptr<Peer> game;
     std::uint32_t game_pid{};
     std::vector<std::shared_ptr<Peer>> peers;
-    std::vector<std::thread> workers;
+    struct Worker {
+        std::shared_ptr<std::atomic<bool>> done;
+        std::thread thread;
+    };
+    std::vector<Worker> workers;
     std::thread accept_thread, link_thread, timer_thread, video_thread;
     Queue<Command> commands;
     Queue<SessionEvent> events;
@@ -170,6 +174,12 @@ struct EditorServer::Impl {
             { std::lock_guard lock(mutex); if(active!=own) return false; own->last=std::chrono::steady_clock::now(); }
             if(const auto* ping=std::get_if<Ping>(&f.message)) p->writer.send(Pong{ping->timeUs});
             else if(const auto* cmd=std::get_if<Command>(&f.message)) commands.push(*cmd);
+            else if(const auto* error=std::get_if<Error>(&f.message)) {
+                if(config.log) config.log("Phone error: source " + std::to_string(static_cast<unsigned>(error->source)) + ", code " + std::to_string(static_cast<unsigned>(error->code)));
+                SessionEvent event{SessionEvent::Kind::phone_error};
+                event.source=error->source; event.code=error->code;
+                events.push(std::move(event));
+            }
             else if(const auto* bye=std::get_if<Bye>(&f.message)) { finish(own,bye->reason); return false; }
             else if(std::holds_alternative<Touch>(f.message)||std::holds_alternative<FrameAck>(f.message)||std::holds_alternative<DecoderStats>(f.message)||std::holds_alternative<RequestKeyframe>(f.message)) {
                 std::shared_ptr<Peer> g; { std::lock_guard lock(mutex); g=game; } if(g) g->writer.send_bytes(f.bytes);
@@ -215,9 +225,22 @@ struct EditorServer::Impl {
         while(running) {
             auto socket=net::accept(link?link_listener:listener); if(!socket) continue;
             auto p=std::make_shared<Peer>(std::move(socket));
-            { std::lock_guard lock(mutex); peers.push_back(p); }
             std::lock_guard worker_lock(workers_mutex);
-            workers.emplace_back([this,p,link] { try { if(link) game_reader(p); else phone(p); } catch(...) { p->socket.close(); } });
+            for(auto it=workers.begin();it!=workers.end();) {
+                if(*it->done) { it->thread.join(); it=workers.erase(it); }
+                else ++it;
+            }
+            {
+                std::lock_guard lock(mutex);
+                peers.erase(std::remove_if(peers.begin(),peers.end(),[](const auto& peer) { return !peer->socket; }),peers.end());
+                peers.push_back(p);
+            }
+            auto done=std::make_shared<std::atomic<bool>>(false);
+            workers.push_back({done,{}});
+            workers.back().thread=std::thread([this,p,link,done] {
+                try { if(link) game_reader(p); else phone(p); } catch(...) { p->socket.close(); }
+                *done=true;
+            });
         }
     }
 };
@@ -268,7 +291,7 @@ void EditorServer::stop() {
     if(i.accept_thread.joinable()) i.accept_thread.join(); if(i.link_thread.joinable()) i.link_thread.join();
     { std::lock_guard lock(i.mutex); for(auto& p:i.peers) p->socket.close(); }
     if(i.timer_thread.joinable()) i.timer_thread.join(); if(i.video_thread.joinable()) i.video_thread.join();
-    for(auto& t:i.workers) if(t.joinable()) t.join();
+    for(auto& worker:i.workers) if(worker.thread.joinable()) worker.thread.join();
     i.workers.clear();
     { std::lock_guard lock(i.mutex); i.peers.clear(); i.active.reset(); i.game.reset(); }
     { std::lock_guard lock(i.video_mutex); i.videos.clear(); }

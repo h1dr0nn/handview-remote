@@ -44,7 +44,7 @@ class GuardedEncoder final : public Encoder {
                 first = false;
                 return true;
             }
-            failed = true;
+            failed = !encoder->recoverable_failure();
             out = {};
             return false;
         } catch (const std::exception &ex) {

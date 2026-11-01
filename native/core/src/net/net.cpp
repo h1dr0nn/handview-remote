@@ -40,12 +40,13 @@ Socket listen_loopback(std::uint16_t port) {
 }
 Socket connect_loopback(std::uint16_t port, Milliseconds timeout) {
     Socket socket{::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)};
+    if (!socket) return socket;
     u_long mode = 1; ioctlsocket(socket.native_handle(), FIONBIO, &mode);
     const auto a = address(port);
     const int result = ::connect(socket.native_handle(), reinterpret_cast<const sockaddr*>(&a), sizeof(a));
     if (result != 0 && (WSAGetLastError() != WSAEWOULDBLOCK || ready(socket.native_handle(), timeout, true) <= 0)) { socket.close(); return socket; }
     int error = 0; int length = sizeof(error);
-    if (getsockopt(socket.native_handle(), SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &length) != 0 || error != 0) socket.close();
+    if (getsockopt(socket.native_handle(), SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &length) != 0 || error != 0) { socket.close(); return socket; }
     mode = 0; ioctlsocket(socket.native_handle(), FIONBIO, &mode); set_nodelay(socket); return socket;
 }
 Socket accept(const Socket& listener, Milliseconds timeout) { if (ready(listener.native_handle(), timeout, false) <= 0) return Socket{}; Socket result{::accept(listener.native_handle(), nullptr, nullptr)}; set_nodelay(result); return result; }

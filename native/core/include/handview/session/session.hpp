@@ -37,12 +37,14 @@ struct ServerConfig {
     net::LogSink log{};
 };
 struct SessionEvent {
-    enum class Kind { connected, disconnected, game_disconnected };
+    enum class Kind { connected, disconnected, game_disconnected, phone_error };
     Kind kind{};
     protocol::Hello hello{};
     protocol::ByeReason reason{protocol::ByeReason::Normal};
     std::uint32_t process_id{};
     bool timed_out{};
+    protocol::ErrorSource source{};
+    protocol::ErrorCode code{};
 };
 class EditorServer {
 public:

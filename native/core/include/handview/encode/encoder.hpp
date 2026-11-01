@@ -25,6 +25,7 @@ class Encoder {
     virtual Backend backend() const = 0;
     virtual bool encode(const uint8_t *rgba, uint32_t stride, uint64_t pts_us, bool force_idr,
                         EncodedFrame &out, std::string &error) = 0;
+    virtual bool recoverable_failure() const { return false; }
     virtual bool set_rate(uint8_t fps, uint32_t bitrate_kbps) = 0;
     virtual ~Encoder() = default;
 };

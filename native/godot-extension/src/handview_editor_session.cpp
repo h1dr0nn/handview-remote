@@ -149,6 +149,11 @@ Array HandviewEditorSession::poll() {
             case session::SessionEvent::Kind::game_disconnected:
                 event["type"] = "game_disconnected";
                 break;
+            case session::SessionEvent::Kind::phone_error:
+                event["type"] = "phone_error";
+                event["source"] = static_cast<int64_t>(item->source);
+                event["code"] = static_cast<int64_t>(item->code);
+                break;
         }
         events.push_back(event);
     }

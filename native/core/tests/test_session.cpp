@@ -17,7 +17,8 @@ struct App {
 };
 template<class F> bool eventually(F f) {auto end=std::chrono::steady_clock::now()+1000ms; do{if(f())return true;std::this_thread::sleep_for(5ms);}while(std::chrono::steady_clock::now()<end);return false;}
 int main(){
- session::ServerConfig config; config.timeout=900ms; config.ping_interval=100ms; session::EditorServer server(config); CHECK(server.start(0));
+ std::atomic<bool> phone_error_logged{false};
+ session::ServerConfig config; config.log=[&](std::string_view text){if(text=="Phone error: source 1, code 2")phone_error_logged=true;}; config.timeout=900ms; config.ping_interval=100ms; session::EditorServer server(config); CHECK(server.start(0));
  std::array<std::uint8_t,32> token{};token[0]=1;server.set_pending_token(token);server.set_link_token(token);
  Hello hello{1,token,2400,1080,400,60,{{Codec::H264,Profile::Main,41,1920,1080}},"test"};
  {App bad(server.port());auto h=hello;h.protoVersion=2;bad.writer.send(h);auto r=bad.receive<Reject>();CHECK(r && r->reason==RejectReason::BadVersion);}
@@ -36,6 +37,9 @@ int main(){
  app.writer.send(Touch{7,20,{{0,Phase::Began,0.25f,0.5f,1.0f}}});CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<Touch>(*m) && std::get<Touch>(*m).touchSeq==7;}));
  app.writer.send(FrameAck{17}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<FrameAck>(*m) && std::get<FrameAck>(*m).frameSeq==17;}));
  app.writer.send(DecoderStats{2,3}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<DecoderStats>(*m) && std::get<DecoderStats>(*m).pendingOutputs==2;}));
+ app.writer.send(Error{ErrorSource::Decoder,ErrorCode::ProcessFailed});
+ CHECK(eventually([&]{auto e=server.poll_event();return e && e->kind==session::SessionEvent::Kind::phone_error && e->source==ErrorSource::Decoder && e->code==ErrorCode::ProcessFailed;}));
+ CHECK(phone_error_logged);
  app.writer.send(RequestKeyframe{}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<RequestKeyframe>(*m);}));
  StreamConfigChanged change{640,480,Orientation::Landscape,30,3000}; CHECK(game.send_stream_config_changed(change)); auto changed=app.receive<StreamConfigChanged>(); CHECK(changed && app.last_bytes==encode(change));
  CHECK(game.send_error(ErrorSource::Encoder,ErrorCode::DeviceLost)); auto error=app.receive<Error>(); CHECK(error && error->code==ErrorCode::DeviceLost);
@@ -48,6 +52,11 @@ int main(){
  CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<LinkStart>(*m);}));
  CHECK(replacement.receive<Bye>().has_value());CHECK(eventually([&]{auto e=server.poll_event();return e && e->kind==session::SessionEvent::Kind::disconnected && e->timed_out;}));
  CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<LinkStop>(*m);}));
+ for(int cycle=0;cycle<50;++cycle) {
+  server.set_pending_token(token); App reconnect(server.port()); CHECK(reconnect.writer.send(hello)); CHECK(reconnect.receive<Welcome>().has_value());
+  CHECK(reconnect.writer.send(Bye{ByeReason::Normal})); CHECK(reconnect.receive<Bye>().has_value());
+ }
+ {server.set_pending_token(token); App final_app(server.port()); CHECK(final_app.writer.send(hello)); CHECK(final_app.receive<Welcome>().has_value()); final_app.writer.send(Ping{456}); auto reply=final_app.receive<Pong>(); CHECK(reply && reply->timeUs==456);}
  server.stop();return test_result("session");
 }
 

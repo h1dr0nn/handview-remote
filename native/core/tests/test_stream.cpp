@@ -131,9 +131,11 @@ void test_stream_pipeline() {
     CHECK(controller.status().encoder.size() > 0);
 
     // Acks reopen the pipe; touches are delivered and stamped on later frames.
-    editor.writer->send(FrameAck{2});
+    // The touch is taken by the game before the pipe reopens, so frame 3 must carry it.
     editor.writer->send(Touch{7, 123, {Pointer{1, Phase::Began, 0.25f, 0.75f, 1.0f}}});
     std::vector<stream::TouchEvent> touches;
+    for (int i = 0; i < 50 && touches.empty(); ++i) pump(controller, 1, 10ms, &touches);
+    editor.writer->send(FrameAck{2});
     pump(controller, 1, 200ms, &touches);
     CHECK(touches.size() == 1);
     if (!touches.empty()) {

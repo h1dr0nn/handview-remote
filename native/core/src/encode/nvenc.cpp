@@ -161,6 +161,7 @@ class Nvenc final : public Encoder {
         e.clear();
         if (!gpu.convert(rgba, stride, e))
             return false;
+        gpu.context->Flush();
         NV_ENC_MAP_INPUT_RESOURCE map{};
         map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
         map.registeredResource = resource;

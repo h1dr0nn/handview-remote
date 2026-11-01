@@ -73,6 +73,7 @@ class Mf final : public Encoder {
     unsigned slot = 0;
     DWORD input_id = 0, output_id = 0;
     bool streaming = false, need_input = false, have_output = false;
+    bool first_frame = true, force_keyframe_supported = true, retryable = false;
     std::vector<uint8_t> headers;
     uint8_t length_bytes = 4;
     bool property(const GUID &key, ULONG value, bool boolean = false) {
@@ -369,18 +370,28 @@ class Mf final : public Encoder {
                 std::string &e) override {
         out = {};
         e.clear();
+        retryable = false;
+        if (idr && !first_frame && !force_keyframe_supported) {
+            retryable = true;
+            e = "MFT force keyframe unsupported; reinitialize encoder for IDR";
+            return false;
+        }
         if (pts > uint64_t(INT64_MAX) / 10) {
             e = "PTS overflow";
             return false;
+        }
+        if (idr && force_keyframe_supported && !property(CODECAPI_AVEncVideoForceKeyFrame, 1)) {
+            force_keyframe_supported = false;
+            if (!first_frame) {
+                retryable = true;
+                e = "MFT force keyframe unsupported; reinitialize encoder for IDR";
+                return false;
+            }
         }
         if (!gpu.convert(rgba, stride, e))
             return false;
         if (events && !event(METransformNeedInput, e))
             return false;
-        if (idr && !property(CODECAPI_AVEncVideoForceKeyFrame, 1)) {
-            e = "Force keyframe unsupported";
-            return false;
-        }
         ComPtr<IMFSample> sample;
         ComPtr<IMFMediaBuffer> buffer;
         if (!hr(MFCreateSample(&sample), "Input sample", e))
@@ -421,8 +432,12 @@ class Mf final : public Encoder {
             return false;
         if (events && !event(METransformHaveOutput, e))
             return false;
-        return output(out, e);
+        if (!output(out, e))
+            return false;
+        first_frame = false;
+        return true;
     }
+    bool recoverable_failure() const override { return retryable; }
     bool set_rate(uint8_t fps, uint32_t kbps) override {
         if (!fps || !kbps || kbps > UINT32_MAX / 1000)
             return false;
