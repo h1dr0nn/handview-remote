@@ -117,12 +117,8 @@ void HandviewEditorSession::send_stream_paused(int64_t reason) {
 Array HandviewEditorSession::poll() {
     Array events;
     if (!server_) return events;
-    while (auto command = server_->poll_command()) {
-        Dictionary event;
-        event["type"] = "command";
-        event["cmd"] = static_cast<int64_t>(command->cmd);
-        events.push_back(event);
-    }
+    // Session events first: a Command can arrive right after Welcome, and the
+    // plugin must see "connected" before acting on it.
     while (auto item = server_->poll_event()) {
         Dictionary event;
         switch (item->kind) {
@@ -154,6 +150,12 @@ Array HandviewEditorSession::poll() {
                 event["type"] = "game_disconnected";
                 break;
         }
+        events.push_back(event);
+    }
+    while (auto command = server_->poll_command()) {
+        Dictionary event;
+        event["type"] = "command";
+        event["cmd"] = static_cast<int64_t>(command->cmd);
         events.push_back(event);
     }
     return events;
