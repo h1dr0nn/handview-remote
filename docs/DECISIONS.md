@@ -29,7 +29,7 @@ Chosen: 1. A loopback copy of a few MB/s costs well under a millisecond. The rel
 
 ## D6. Editor to game parameters go through environment variables
 
-The runtime autoload must only activate when Handview launched the game. The editor sets `HANDVIEW_LINK_PORT` and `HANDVIEW_LINK_TOKEN` with `OS.set_environment()` right before `EditorInterface.play_main_scene()`; the child process inherits them, and the editor clears them after launch. The brief mentions command line arguments; the only way to add those from an addon is the project setting `editor/run/main_run_args`, which would write to `project.godot` and show up in the user's git diff. Status: final.
+The runtime autoload activates only when it finds `HANDVIEW_LINK_PORT` and `HANDVIEW_LINK_TOKEN` in its environment. The editor sets them with `OS.set_environment()` while a phone is connected and clears them when the phone session ends; every game the editor launches in that window inherits them, so a play started with the editor's own Play button streams too. `HANDVIEW_HIDE_WINDOW=1` is set only right before a play started from the phone and cleared on the next frame, so only those plays hide their window. The brief mentions command line arguments; the only way to add those from an addon is the project setting `editor/run/main_run_args`, which would write to `project.godot` and show up in the user's git diff. Spike 3 confirmed that variables set before `play_main_scene()` reach the game and that cleared variables do not leak into later plays. Status: final.
 
 ## D7. Internal editor to game link reuses the wire format
 
