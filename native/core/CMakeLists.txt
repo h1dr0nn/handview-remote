@@ -13,7 +13,8 @@ set_target_properties(handview_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(WIN32)
     target_compile_definitions(handview_core PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX)
-    target_link_libraries(handview_core PUBLIC ws2_32)
+    target_link_libraries(handview_core PUBLIC ws2_32 d3d11 dxgi mfplat mfuuid mf strmiids ole32 oleaut32)
+    target_include_directories(handview_core SYSTEM PRIVATE ../third_party/nv-codec-headers/include)
 endif()
 
 if(MSVC)
