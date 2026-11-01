@@ -6,6 +6,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "MSVC runtime librar
 
 project(handview VERSION 0.1.0 LANGUAGES CXX)
 
+option(HANDVIEW_BUILD_TOOLS "Build internal test tools" ON)
 option(HANDVIEW_BUILD_TESTS "Build native core unit tests" ON)
 option(HANDVIEW_BUILD_GODOT "Build the GDExtension (needs third_party/godot-cpp)" ON)
 
@@ -17,4 +18,8 @@ add_subdirectory(core)
 
 if(HANDVIEW_BUILD_GODOT)
     add_subdirectory(godot-extension)
+endif()
+
+if(HANDVIEW_BUILD_TOOLS)
+    add_subdirectory(../tools ${CMAKE_BINARY_DIR}/tools)
 endif()
