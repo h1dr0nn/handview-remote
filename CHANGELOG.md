@@ -12,6 +12,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Wi-Fi sessions (DECISIONS D22): "Allow Wi-Fi" in the dock opens the listener to the LAN, shows a QR code and a PIN, and announces the editor with a UDP beacon. The app lists editors on the network, joins with the PIN or by scanning the code, and shows Wi-Fi in the status line.
 - Phone keyboard and motion sensors: Key and Sensor messages; the runtime injects key events and sets the accelerometer, gyroscope, gravity and magnetometer.
 - Resolution, FPS and Bitrate settings apply to the stream (StreamPrefs message).
+- Reload on the cast screen (in place of Step) restarts the game with the latest code; the phone shows "Reloading" until the new run starts (Restart command).
 - `Handview.get_safe_area()` and `safe_area_changed` give a game the phone's cutout and system bar insets while it runs under Handview (DECISIONS D20).
 
 ### Changed
@@ -27,6 +28,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Video stayed black after the decoder restarted (Full Screen, rotation, decode errors): frames dropped while waiting for an IDR were never acked, so the host stopped sending. The app acks them and RequestKeyframe resets the host's in-flight count.
 - After an adb server restart the phone could not join: reverses are checked on every refresh and set up again.
 - An editor that moved to another port showed up twice on the phone.
+- Settings' video options open a floating dropdown instead of pushing the page down; messages are toasts.
+- The dock showed each device's state on the same line as its name.
 - Touch-to-display never showed a value on Pixel phones: the Exynos decoder reports render times on CLOCK_BOOTTIME. Render times are now mapped onto the monotonic clock.
 
 ## [0.2.0] - 2026-11-01
