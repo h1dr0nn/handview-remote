@@ -64,6 +64,7 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
     std::deque<Tap> pending;
     std::vector<double> latencies;
     std::uint32_t touchSeq=0;
+    std::uint64_t streamFrames=0;
     auto start=stream::now_us(),lastStats=start,lastPing=start,lastTap=start,lastPeer=start;
     auto maybePlay=[&] {
         if(welcomed&&state==EditorStateValue::Stopped&&args.has("--play")&&!playSent) {
@@ -107,13 +108,17 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
         }
         else if(const auto* c=std::get_if<CommandResult>(&m)) {
             std::cout<<"CommandResult "<<static_cast<int>(c->cmd)<<' '<<static_cast<int>(c->result)<<' '<<static_cast<int>(c->editorState)<<'\n';
-            played|=c->editorState==EditorStateValue::Playing;
+            state=c->editorState;
+            played|=state==EditorStateValue::Playing;
             if(c->cmd==Cmd::Stop)stopResult=true;
         }
         else if(const auto* config=std::get_if<StreamConfigChanged>(&m)) {
             width=config->width;
             height=config->height;
             expectKey=true;
+            // Touches sent before this stream existed never reach a game; do not count them.
+            pending.clear();
+            streamFrames=0;
             std::cout<<"StreamConfigChanged "<<width<<'x'<<height<<'\n';
         }
         else if(const auto* paused=std::get_if<StreamPaused>(&m)) {
@@ -123,6 +128,9 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
             std::cout<<"Error "<<static_cast<int>(e->source)<<' '<<static_cast<int>(e->code)<<'\n';
             ++errors;
             expectKey=true;
+            // Touches sent before this stream existed never reach a game; do not count them.
+            pending.clear();
+            streamFrames=0;
         }
         else if(const auto* p=std::get_if<Ping>(&m))send(Pong {p->timeUs});
         else if(const auto* b=std::get_if<Bye>(&m)) {
@@ -135,6 +143,7 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
                 return;
             }
             ++frames;
+            ++streamFrames;
             bytes+=f->data.size();
             auto flags=static_cast<unsigned>(f->flags);
             if(flags&1)++keys;
@@ -206,7 +215,7 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
             send(Ping {now});
             lastPing=now;
         }
-        if(tapEvery&&state==EditorStateValue::Playing&&now-lastTap>=tapEvery*1000ull&&now-start+250000<duration*1000000ull) {
+        if(tapEvery&&state==EditorStateValue::Playing&&streamFrames>0&&now-lastTap>=tapEvery*1000ull&&now-start+250000<duration*1000000ull) {
             auto seq=++touchSeq;
             send(Touch {
                 seq,now, {
