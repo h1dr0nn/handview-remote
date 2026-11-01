@@ -73,6 +73,11 @@ func _init() -> void:
 		_native_ok = false
 
 
+# True when the loopback test hook should start a session automatically.
+func loopback_requested() -> bool:
+	return OS.has_environment(ENV_LOOPBACK_FILE) and OS.get_environment(ENV_LOOPBACK_AUTOSTART) == "1"
+
+
 # Called once by the plugin after the dock is connected.
 func start() -> void:
 	if not _native_ok:

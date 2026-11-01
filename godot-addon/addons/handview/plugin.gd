@@ -12,6 +12,8 @@ const Dock := preload("editor/dock.gd")
 
 var _controller: Controller = null
 var _dock: Dock = null
+var _started: bool = false
+var _idle_frames: int = 0
 
 
 func _enable_plugin() -> void:
@@ -27,7 +29,6 @@ func _enter_tree() -> void:
 	_dock = Dock.new()
 	_dock.setup(_controller)
 	add_control_to_dock(EditorPlugin.DOCK_SLOT_RIGHT_UL, _dock)
-	_controller.start()
 
 
 func _exit_tree() -> void:
@@ -41,5 +42,26 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
-	if _controller != null:
-		_controller.process(delta)
+	if _controller == null:
+		return
+	if not _started:
+		_try_start()
+		return
+	_controller.process(delta)
+
+
+# Background adb tasks run GDScript on worker threads, which must not overlap
+# the editor's first scan and import (scripts reload then, and a thread inside
+# a reloading script crashes the editor). Start once the scan has settled.
+# Headless editors (imports, CI) never start, unless the loopback test hook asks.
+func _try_start() -> void:
+	if DisplayServer.get_name() == "headless" and not _controller.loopback_requested():
+		return
+	if EditorInterface.get_resource_filesystem().is_scanning():
+		_idle_frames = 0
+		return
+	_idle_frames += 1
+	if _idle_frames < 30:
+		return
+	_started = true
+	_controller.start()
