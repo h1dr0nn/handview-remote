@@ -35,6 +35,8 @@ class MainActivity : ComponentActivity(), Actions {
     private var autoConnect = true
     private var resumed = false
     private var lastTried: String? = null
+    private var viewWidth = 0
+    private var viewHeight = 0
     @Volatile private var generation = 0
     private var touchSeq = 0L
     private var touchReady = false
@@ -94,6 +96,12 @@ class MainActivity : ComponentActivity(), Actions {
         lastTried = offer.token
         connect(offer.token, offer.port)
     }
+    override fun fullScreen(on: Boolean) { state.value = state.value.copy(fullScreen = on) }
+    override fun viewSize(width: Int, height: Int) {
+        if (width == viewWidth && height == viewHeight) return
+        viewWidth = width; viewHeight = height
+        client?.sendViewSize(width, height)
+    }
     override fun connectTo(offer: SessionOffer) { autoConnect = true; lastTried = offer.token; connect(offer.token, offer.port) }
     private fun connect(next: String, port: Int) {
         if (next == token) return
@@ -146,6 +154,8 @@ class MainActivity : ComponentActivity(), Actions {
         when (event) {
             is SessionClient.Event.Connected -> {
                 val w = event.welcome
+                // The stage may have been measured before the session existed.
+                if (viewWidth > 0 && viewHeight > 0) client?.sendViewSize(viewWidth, viewHeight)
                 state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
             }

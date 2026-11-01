@@ -66,6 +66,7 @@
     <string name="step">Step</string>
     <string name="stop">Stop</string>
     <string name="disconnect">Disconnect</string>
+    <string name="full_screen">Full Screen</string>
     <string name="not_playing">Not Playing</string>
     <string name="not_playing_hint">Press Play to run the main scene on the PC.</string>
     <string name="paused">Paused</string>

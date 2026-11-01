@@ -46,6 +46,7 @@ data class StreamConfigChanged(val width: Int, val height: Int, val orientation:
 data class StreamPaused(val reason: PauseReason) : Message
 data class Error(val source: ErrorSource, val code: ErrorCode) : Message
 data class FrameAck(val frameSeq: Long) : Message
+data class ViewSize(val width: Int, val height: Int) : Message
 data class Ping(val timeUs: Long) : Message
 data class Pong(val timeUs: Long) : Message
 data class Bye(val reason: ByeReason) : Message
@@ -148,6 +149,11 @@ fun encode(message: Message): ByteArray {
         is FrameAck -> {
             w.u32(m.frameSeq)
             53
+        }
+        is ViewSize -> {
+            w.u16(m.width)
+            w.u16(m.height)
+            54
         }
         is Ping -> {
             w.u64(m.timeUs)
@@ -253,6 +259,7 @@ fun decode(data: ByteArray, offset: Int, size: Int, channel: Channel): DecodeRes
             51 -> StreamPaused(r.enumeration<PauseReason> { it.wire })
             52 -> Error(r.enumeration<ErrorSource> { it.wire }, r.enumeration<ErrorCode>(wide = true) { it.wire })
             53 -> FrameAck(r.u32())
+            54 -> ViewSize(r.u16(), r.u16())
             64 -> Ping(r.u64())
             65 -> Pong(r.u64())
             240 -> Bye(r.enumeration<ByeReason> { it.wire })

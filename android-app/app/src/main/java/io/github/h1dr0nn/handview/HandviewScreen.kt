@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -38,6 +39,8 @@ data class CastState(
     val fps: Int = 0,
     val latency: LatencyTracker.Summary? = null,
     val message: Int? = null,
+    // Video only, no chrome; Back leaves it.
+    val fullScreen: Boolean = false,
 )
 
 // Everything outside a live session: which screen is open and what it shows.
@@ -51,6 +54,9 @@ data class AppState(
 interface Actions {
     fun command(cmd: Cmd)
     fun disconnect()
+    fun fullScreen(on: Boolean)
+    // Size in pixels of the area the video is shown in (ViewSize).
+    fun viewSize(width: Int, height: Int)
     fun connectTo(offer: SessionOffer)
     fun open(screen: Screen)
     fun wifiNotReady()
@@ -63,6 +69,10 @@ interface Actions {
 fun HandviewScreen(ui: CastState, app: AppState, actions: Actions) {
     Box(Modifier.fillMaxSize().background(Palette.Paper)) {
         when {
+            ui.welcome != null && ui.fullScreen -> {
+                BackHandler { actions.fullScreen(false) }
+                Stage(ui, actions, Modifier.fillMaxSize())
+            }
             ui.welcome != null -> {
                 BackHandler { actions.disconnect() }
                 if (ui.orientation == Orientation.Landscape) CastLandscape(ui, actions) else CastPortrait(ui, actions)
@@ -130,7 +140,8 @@ private fun CastPortrait(ui: CastState, actions: Actions) {
         Stage(ui, actions, Modifier.weight(1f).fillMaxWidth())
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp).height(56.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.weight(1f).fillMaxHeight()) }
-            DisconnectTile(actions, Modifier.width(52.dp).fillMaxHeight())
+            FullScreenTile(actions, Modifier.width(48.dp).fillMaxHeight())
+            DisconnectTile(actions, Modifier.width(48.dp).fillMaxHeight())
         }
     }
 }
@@ -145,7 +156,8 @@ private fun CastLandscape(ui: CastState, actions: Actions) {
         }
         Column(Modifier.width(80.dp).fillMaxHeight().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.fillMaxWidth().weight(1f)) }
-            DisconnectTile(actions, Modifier.fillMaxWidth().height(48.dp))
+            FullScreenTile(actions, Modifier.fillMaxWidth().height(44.dp))
+            DisconnectTile(actions, Modifier.fillMaxWidth().height(44.dp))
         }
     }
 }
@@ -170,6 +182,17 @@ private fun ControlTile(control: Control, ui: CastState, actions: Actions, modif
 }
 
 @Composable
+private fun FullScreenTile(actions: Actions, modifier: Modifier) {
+    val label = stringResource(R.string.full_screen)
+    Box(
+        modifier.clip(CardShape).background(Palette.Card).clickable(role = Role.Button, onClickLabel = label) { actions.fullScreen(true) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Expand, label, Modifier.size(20.dp), tint = Palette.Ink)
+    }
+}
+
+@Composable
 private fun DisconnectTile(actions: Actions, modifier: Modifier) {
     val label = stringResource(R.string.disconnect)
     Box(
@@ -182,7 +205,7 @@ private fun DisconnectTile(actions: Actions, modifier: Modifier) {
 
 @Composable
 private fun Stage(ui: CastState, actions: Actions, modifier: Modifier) {
-    BoxWithConstraints(modifier.background(Palette.Stage), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.background(Palette.Stage).onSizeChanged { actions.viewSize(it.width, it.height) }, contentAlignment = Alignment.Center) {
         val screen = LocalConfiguration.current
         val ratio = if (ui.width > 0 && ui.height > 0) ui.width.toFloat() / ui.height else screen.screenWidthDp.coerceAtLeast(1).toFloat() / screen.screenHeightDp.coerceAtLeast(1)
         val videoModifier = if (maxWidth / maxHeight > ratio) Modifier.fillMaxHeight().aspectRatio(ratio) else Modifier.fillMaxWidth().aspectRatio(ratio)

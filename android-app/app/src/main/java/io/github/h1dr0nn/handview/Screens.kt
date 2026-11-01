@@ -1,5 +1,7 @@
 package io.github.h1dr0nn.handview
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +23,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -101,7 +104,10 @@ private fun DeviceRow(offer: SessionOffer, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Paper), contentAlignment = Alignment.Center) {
-            Text("G", style = Type.Heading, color = Palette.Accent)
+            // Re-read when a newer offer rewrote the file.
+            val icon = remember(offer.icon, offer.atMillis) { offer.icon?.let { BitmapFactory.decodeFile(it.path) }?.asImageBitmap() }
+            if (icon != null) Image(icon, null, Modifier.fillMaxSize())
+            else Text(offer.name.firstOrNull()?.uppercase() ?: "G", style = Type.Heading, color = Palette.Accent)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

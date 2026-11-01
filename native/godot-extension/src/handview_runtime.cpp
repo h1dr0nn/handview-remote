@@ -104,6 +104,8 @@ Dictionary HandviewRuntime::get_status() const {
     result["bitrate_kbps"] = status.bitrate_kbps;
     result["frames_sent"] = status.frames_sent;
     result["last_error"] = String::utf8(status.last_error.c_str());
+    result["view_width"] = status.view_width;
+    result["view_height"] = status.view_height;
     return result;
 }
 

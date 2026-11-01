@@ -32,6 +32,12 @@ object Icons {
     }
     val Stop = filled("Stop") { moveTo(6.5f, 6.5f); horizontalLineToRelative(11f); verticalLineToRelative(11f); horizontalLineToRelative(-11f); close() }
     val Close = stroked("Close", 2.2f) { moveTo(6.5f, 6.5f); lineTo(17.5f, 17.5f); moveTo(17.5f, 6.5f); lineTo(6.5f, 17.5f) }
+    val Expand = stroked("Expand", 2.0f) {
+        moveTo(4.5f, 9f); lineTo(4.5f, 4.5f); lineTo(9f, 4.5f)
+        moveTo(15f, 4.5f); lineTo(19.5f, 4.5f); lineTo(19.5f, 9f)
+        moveTo(19.5f, 15f); lineTo(19.5f, 19.5f); lineTo(15f, 19.5f)
+        moveTo(9f, 19.5f); lineTo(4.5f, 19.5f); lineTo(4.5f, 15f)
+    }
     val Back = stroked("Back", 2.2f) { moveTo(14.5f, 5.5f); lineTo(8f, 12f); lineTo(14.5f, 18.5f) }
     val Usb = stroked("Usb") {
         moveTo(12f, 3.5f); lineTo(12f, 17f)

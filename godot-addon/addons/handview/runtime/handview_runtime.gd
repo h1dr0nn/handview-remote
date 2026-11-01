@@ -25,6 +25,11 @@ var _applied_fps: int = -1
 # A Step unsuspends for one frame; that frame is captured once.
 var _suspended: bool = false
 var _capture_once: bool = false
+# Phone plays (hidden window) follow the phone's video area like the Game
+# workspace's "Stretch to Fit": the window takes its aspect ratio.
+var _fit_window: bool = false
+var _base_size: Vector2i = Vector2i.ZERO
+var _applied_view: Vector2i = Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -59,6 +64,8 @@ func _hide_window_if_requested() -> void:
 	DisplayServer.window_set_position(HIDDEN_POSITION)
 	var handle: int = DisplayServer.window_get_native_handle(DisplayServer.WINDOW_HANDLE)
 	_runtime.call("set_tool_window", handle)
+	_fit_window = true
+	_base_size = DisplayServer.window_get_size()
 
 
 func _process(_delta: float) -> void:
@@ -66,12 +73,34 @@ func _process(_delta: float) -> void:
 		return
 	_frame_counter += 1
 	if _frame_counter % STATUS_INTERVAL_FRAMES == 1:
-		_streaming = bool(_runtime.call("get_status").get("streaming", false))
+		var status: Dictionary = _runtime.call("get_status")
+		_streaming = bool(status.get("streaming", false))
+		_fit_to_view(Vector2i(int(status.get("view_width", 0)), int(status.get("view_height", 0))))
 	var fps: int = maxi(1, int(_runtime.call("get_target_fps"))) if _streaming else IDLE_FPS
 	if fps != _applied_fps:
 		_applied_fps = fps
 		Engine.max_fps = fps
 	_inject_touches()
+
+
+func _fit_to_view(view: Vector2i) -> void:
+	if not _fit_window or view.x <= 0 or view.y <= 0 or view == _applied_view:
+		return
+	_applied_view = view
+	DisplayServer.window_set_size(fit_size(_base_size, view))
+
+
+# Window size with the view's aspect ratio: a tall view keeps the base width,
+# a wide view keeps the base height. Even numbers for the encoder.
+static func fit_size(base: Vector2i, view: Vector2i) -> Vector2i:
+	if base.x <= 0 or base.y <= 0 or view.x <= 0 or view.y <= 0:
+		return base
+	var size: Vector2i = base
+	if view.y >= view.x:
+		size.y = roundi(float(base.x) * view.y / view.x)
+	else:
+		size.x = roundi(float(base.y) * view.x / view.y)
+	return Vector2i(maxi(2, size.x - size.x % 2), maxi(2, size.y - size.y % 2))
 
 
 func _inject_touches() -> void:

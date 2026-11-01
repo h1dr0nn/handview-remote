@@ -37,6 +37,7 @@ int main(){
  app.writer.send(Touch{7,20,{{0,Phase::Began,0.25f,0.5f,1.0f}}});CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<Touch>(*m) && std::get<Touch>(*m).touchSeq==7;}));
  app.writer.send(FrameAck{17}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<FrameAck>(*m) && std::get<FrameAck>(*m).frameSeq==17;}));
  app.writer.send(DecoderStats{2,3}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<DecoderStats>(*m) && std::get<DecoderStats>(*m).pendingOutputs==2;}));
+ app.writer.send(ViewSize{1080,1980}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<ViewSize>(*m) && std::get<ViewSize>(*m).height==1980;}));
  app.writer.send(Error{ErrorSource::Decoder,ErrorCode::ProcessFailed});
  CHECK(eventually([&]{auto e=server.poll_event();return e && e->kind==session::SessionEvent::Kind::phone_error && e->source==ErrorSource::Decoder && e->code==ErrorCode::ProcessFailed;}));
  CHECK(phone_error_logged);

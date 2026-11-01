@@ -173,6 +173,10 @@ struct StreamController::Impl {
                 status.fps = target_fps;
                 status.bitrate_kbps = bitrate_kbps;
             }
+        } else if (const auto* view = std::get_if<ViewSize>(&message)) {
+            std::lock_guard lock(mutex);
+            status.view_width = view->width;
+            status.view_height = view->height;
         } else if (std::holds_alternative<RequestKeyframe>(message)) {
             if (keyframes.request(now)) force_idr = true;
         }

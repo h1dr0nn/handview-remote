@@ -1,3 +1,4 @@
+#include <optional>
 #include "handview/session/session.hpp"
 #include <windows.h>
 #include <bcrypt.h>
@@ -54,7 +55,7 @@ bool GameLink::connect(std::uint16_t port, const std::array<std::uint8_t,32>& to
     impl_->thread = std::thread([this,peer] {
         try { read_peer(*peer, Channel::Link, impl_->log, [this](const net::Frame& frame) {
             const auto& m = frame.message;
-            if (std::holds_alternative<LinkStart>(m) || std::holds_alternative<LinkStop>(m) || std::holds_alternative<Touch>(m) || std::holds_alternative<FrameAck>(m) || std::holds_alternative<DecoderStats>(m) || std::holds_alternative<RequestKeyframe>(m)) impl_->incoming.push(m);
+            if (std::holds_alternative<LinkStart>(m) || std::holds_alternative<LinkStop>(m) || std::holds_alternative<Touch>(m) || std::holds_alternative<FrameAck>(m) || std::holds_alternative<DecoderStats>(m) || std::holds_alternative<RequestKeyframe>(m) || std::holds_alternative<ViewSize>(m)) impl_->incoming.push(m);
             return true;
         }); } catch (...) {}
         impl_->live = false; peer->socket.close();
@@ -84,6 +85,7 @@ struct EditorServer::Impl {
         std::shared_ptr<Peer> video;
         Hello hello;
         Welcome welcome;
+        std::optional<ViewSize> view;
         std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
     };
     net::WinsockInit winsock;
@@ -181,6 +183,10 @@ struct EditorServer::Impl {
                 events.push(std::move(event));
             }
             else if(const auto* bye=std::get_if<Bye>(&f.message)) { finish(own,bye->reason); return false; }
+            else if(const auto* view=std::get_if<ViewSize>(&f.message)) {
+                // Kept for a game that links later; forwarded to one already linked.
+                std::shared_ptr<Peer> g; { std::lock_guard lock(mutex); own->view=*view; g=game; } if(g) g->writer.send_bytes(f.bytes);
+            }
             else if(std::holds_alternative<Touch>(f.message)||std::holds_alternative<FrameAck>(f.message)||std::holds_alternative<DecoderStats>(f.message)||std::holds_alternative<RequestKeyframe>(f.message)) {
                 std::shared_ptr<Peer> g; { std::lock_guard lock(mutex); g=game; } if(g) g->writer.send_bytes(f.bytes);
             }
@@ -202,7 +208,7 @@ struct EditorServer::Impl {
                 std::lock_guard transition_lock(handshake_mutex);
                 std::shared_ptr<Session> s;
                 { std::lock_guard lock(mutex); if(!link_token || *link_token!=h->linkToken || game) return false; game=p; game_pid=h->processId; authenticated=true; s=active; }
-                if(s) p->writer.send(caps(s->hello));
+                if(s) { p->writer.send(caps(s->hello)); std::lock_guard lock(mutex); if(s->view) p->writer.send(*s->view); }
                 return true;
             }
             if(std::holds_alternative<VideoFrame>(f.message)) {

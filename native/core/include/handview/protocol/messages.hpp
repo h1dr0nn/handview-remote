@@ -123,6 +123,10 @@ struct Error {
 struct FrameAck {
     std::uint32_t frameSeq{};
 };
+struct ViewSize {
+    std::uint16_t width{};
+    std::uint16_t height{};
+};
 struct Ping {
     std::uint64_t timeUs{};
 };
@@ -152,7 +156,7 @@ struct LinkStart {
 struct LinkStop {
 };
 struct Unknown { std::uint16_t type = 0; std::uint32_t length = 0; };
-using Message = std::variant<Hello, Welcome, Reject, VideoAttach, Command, CommandResult, EditorState, Touch, RequestKeyframe, DecoderStats, StreamConfigChanged, StreamPaused, Error, FrameAck, Ping, Pong, Bye, VideoFrame, LinkHello, LinkStart, LinkStop, Unknown>;
+using Message = std::variant<Hello, Welcome, Reject, VideoAttach, Command, CommandResult, EditorState, Touch, RequestKeyframe, DecoderStats, StreamConfigChanged, StreamPaused, Error, FrameAck, ViewSize, Ping, Pong, Bye, VideoFrame, LinkHello, LinkStart, LinkStop, Unknown>;
 enum class DecodeStatus { Ok, NeedMore, TooLarge, UnknownType, BadSize, BadEnum };
 // Incomplete or oversized input consumes zero bytes; complete messages consume their full frame.
 struct DecodeResult { DecodeStatus status; std::size_t consumed = 0; Message message{}; };

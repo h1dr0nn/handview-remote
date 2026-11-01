@@ -3,13 +3,17 @@ package io.github.h1dr0nn.handview
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.util.Base64
 import io.github.h1dr0nn.handview.client.SessionClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 
 // An editor that armed a one-time token for this phone over adb (DECISIONS D18).
-data class SessionOffer(val port: Int, val token: String, val name: String, val atMillis: Long)
+// `icon` is the project icon saved by the receiver, or null.
+data class SessionOffer(val port: Int, val token: String, val name: String, val atMillis: Long, val icon: File? = null)
 
 object SessionOffers {
     private const val PREFS = "handview_offers"
@@ -35,15 +39,15 @@ object SessionOffers {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         state.value = prefs.all.values.mapNotNull { value ->
             val f = (value as? String)?.split('\n') ?: return@mapNotNull null
-            if (f.size != 4) return@mapNotNull null
-            runCatching { SessionOffer(f[0].toInt(), f[1], f[2], f[3].toLong()) }.getOrNull()
+            if (f.size !in 4..5) return@mapNotNull null
+            runCatching { SessionOffer(f[0].toInt(), f[1], f[2], f[3].toLong(), f.getOrNull(4)?.let(::File)?.takeIf { it.isFile }) }.getOrNull()
         }.sortedByDescending { it.atMillis }
     }
 
     private fun save(context: Context, offers: List<SessionOffer>) {
         state.value = offers.sortedByDescending { it.atMillis }
         val edit = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear()
-        offers.forEach { edit.putString(it.port.toString(), "${it.port}\n${it.token}\n${it.name}\n${it.atMillis}") }
+        offers.forEach { edit.putString(it.port.toString(), "${it.port}\n${it.token}\n${it.name}\n${it.atMillis}\n${it.icon?.path.orEmpty()}") }
         edit.apply()
     }
 }
@@ -59,6 +63,17 @@ class SessionOfferReceiver : BroadcastReceiver() {
         val name = intent.getStringExtra("name_hex")?.let { hex ->
             runCatching { String(hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray(), Charsets.UTF_8) }.getOrNull()
         }.orEmpty().take(64)
-        SessionOffers.put(context, SessionOffer(port, token, name, System.currentTimeMillis()))
+        val icon = intent.getStringExtra("icon_b64")?.let { saveIcon(context, port, it) }
+        SessionOffers.put(context, SessionOffer(port, token, name, System.currentTimeMillis(), icon))
     }
+
+    // Keeps the icon only if it decodes as a small image.
+    private fun saveIcon(context: Context, port: Int, base64: String): File? = runCatching {
+        if (base64.length > 64 * 1024) return null
+        val bytes = Base64.decode(base64, Base64.DEFAULT)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth !in 1..256 || bounds.outHeight !in 1..256) return null
+        File(context.filesDir, "offer_icons").apply { mkdirs() }.resolve("$port.png").apply { writeBytes(bytes) }
+    }.getOrNull()
 }

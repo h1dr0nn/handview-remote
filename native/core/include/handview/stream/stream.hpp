@@ -40,6 +40,9 @@ struct StreamStatus {
     std::uint32_t bitrate_kbps = 0;
     std::uint32_t frames_sent = 0;
     std::string last_error;
+    // The phone's video area (ViewSize), 0 x 0 until the phone sent one.
+    std::uint16_t view_width = 0;
+    std::uint16_t view_height = 0;
 };
 
 class StreamController {

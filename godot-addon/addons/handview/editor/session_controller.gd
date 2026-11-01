@@ -27,6 +27,8 @@ const EMBED_RESTORE_DELAY_SEC: float = 1.5
 const STREAM_FPS: int = 60
 const PAUSE_REASON_NOT_PLAYING: int = 0
 const PAUSE_REASON_PAUSED: int = 1
+# Size of the project icon sent with offers; small enough for one adb shell command.
+const OFFER_ICON_SIZE: int = 64
 
 const ENV_LINK_PORT: String = "HANDVIEW_LINK_PORT"
 const ENV_LINK_TOKEN: String = "HANDVIEW_LINK_TOKEN"
@@ -56,6 +58,7 @@ var _port: int = -1
 var _token_hex: String = ""
 var _link_token_hex: String = ""
 var _project_name_hex: String = ""
+var _project_icon_b64: String = ""
 # serial -> token the device was last offered.
 var _armed: Dictionary = {}
 # serial -> true while its prepare task runs.
@@ -101,6 +104,7 @@ func loopback_requested() -> bool:
 func start() -> void:
 	var project_name: String = str(ProjectSettings.get_setting("application/config/name", ""))
 	_project_name_hex = Logic.offer_name_hex(project_name)
+	_project_icon_b64 = _load_project_icon()
 	if _ensure_native():
 		_open_listener()
 	else:
@@ -206,6 +210,23 @@ func process(delta: float) -> void:
 
 # ---- Listener and tokens ---------------------------------------------------
 
+# The project icon as a small base64 PNG for the app's device list, "" if none.
+func _load_project_icon() -> String:
+	var path: String = str(ProjectSettings.get_setting("application/config/icon", ""))
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return ""
+	var texture: Texture2D = load(path) as Texture2D
+	if texture == null:
+		return ""
+	var image: Image = texture.get_image()
+	if image == null or image.is_empty():
+		return ""
+	if image.is_compressed() and image.decompress() != OK:
+		return ""
+	image.resize(OFFER_ICON_SIZE, OFFER_ICON_SIZE, Image.INTERPOLATE_LANCZOS)
+	return Marshalls.raw_to_base64(image.save_png_to_buffer())
+
+
 # Opens the phone listener on the first free port and arms the first token.
 func _open_listener() -> void:
 	var port: int = -1
@@ -238,7 +259,7 @@ func _new_token() -> void:
 	_token_hex = token.hex_encode()
 	var path: String = _find_adb()
 	for serial: String in _armed.keys():
-		_spawn(_task_offer.bind(path, serial, _port, _token_hex, _project_name_hex))
+		_spawn(_task_offer.bind(path, serial, _port, _token_hex, _project_name_hex, _project_icon_b64))
 
 
 func _write_loopback_file() -> void:
@@ -318,7 +339,7 @@ func _arm(serial: String, uninstall_first: bool) -> void:
 		return
 	_arming[serial] = true
 	var apk_global: String = ProjectSettings.globalize_path(APK_PATH) if FileAccess.file_exists(APK_PATH) else ""
-	_spawn(_task_arm.bind(adb_path, serial, apk_global, _bundled_version(), _port, _token_hex, _project_name_hex, uninstall_first))
+	_spawn(_task_arm.bind(adb_path, serial, apk_global, _bundled_version(), _port, _token_hex, _project_name_hex, _project_icon_b64, uninstall_first))
 
 
 # Called by the dock after the uninstall ConfirmationDialog.
@@ -350,7 +371,7 @@ func _bundled_version() -> int:
 
 
 # Worker: app install or update, adb reverse, then the offer.
-func _task_arm(adb_path: String, serial: String, apk_global: String, bundled: int, port: int, token_hex: String, name_hex: String, uninstall_first: bool) -> void:
+func _task_arm(adb_path: String, serial: String, apk_global: String, bundled: int, port: int, token_hex: String, name_hex: String, icon_b64: String, uninstall_first: bool) -> void:
 	var adb: Adb = Adb.new(adb_path)
 	var result: Dictionary = {"ok": false, "message": "", "confirm": false, "output": "", "serial": serial, "token": token_hex}
 	var need_install: bool = false
@@ -382,7 +403,7 @@ func _task_arm(adb_path: String, serial: String, apk_global: String, bundled: in
 		result["message"] = "adb reverse failed for port %d." % port
 		_on_armed.call_deferred(result)
 		return
-	var offered: Dictionary = adb.offer(serial, token_hex, port, name_hex)
+	var offered: Dictionary = adb.offer(serial, token_hex, port, name_hex, icon_b64)
 	if int(offered["exit_code"]) != 0:
 		result["message"] = "Could not reach the Handview app. adb output:\n" + str(offered["output"])
 		_on_armed.call_deferred(result)
@@ -409,14 +430,14 @@ func _on_armed(result: Dictionary) -> void:
 	_armed[serial] = str(result["token"])
 	# A phone used the token while this device was being prepared.
 	if str(result["token"]) != _token_hex:
-		_spawn(_task_offer.bind(_find_adb(), serial, _port, _token_hex, _project_name_hex))
+		_spawn(_task_offer.bind(_find_adb(), serial, _port, _token_hex, _project_name_hex, _project_icon_b64))
 	state_changed.emit()
 
 
-func _task_offer(adb_path: String, serial: String, port: int, token_hex: String, name_hex: String) -> void:
+func _task_offer(adb_path: String, serial: String, port: int, token_hex: String, name_hex: String, icon_b64: String) -> void:
 	if adb_path.is_empty():
 		return
-	Adb.new(adb_path).offer(serial, token_hex, port, name_hex)
+	Adb.new(adb_path).offer(serial, token_hex, port, name_hex, icon_b64)
 
 
 func _set_link_env(enabled: bool) -> void:
