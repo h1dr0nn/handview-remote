@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -23,6 +24,7 @@ object Icons {
     val Stop = Material.Rounded.Stop
     val Close = Material.Rounded.Close
     val Expand = Material.Rounded.Fullscreen
+    val Keyboard = Material.Rounded.Keyboard
     val Back = Material.AutoMirrored.Rounded.ArrowBack
     val Usb = Material.Rounded.Usb
     val Wifi = Material.Rounded.Wifi

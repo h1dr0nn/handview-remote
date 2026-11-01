@@ -138,6 +138,8 @@ class SessionClient(
     fun sendTouch(seq: Long, eventTimeUs: Long, pointers: List<Pointer>) = send(Touch(seq, eventTimeUs, pointers))
     fun sendFrameAck(seq: Long) = send(FrameAck(seq))
     fun sendStreamPrefs(prefs: StreamPrefs) = send(prefs)
+    fun sendSensor(sensor: Sensor) = send(sensor)
+    fun sendKey(key: Key) = send(key)
     fun sendViewSize(view: ViewSize) = send(ViewSize(
         view.width.coerceIn(0, 65535), view.height.coerceIn(0, 65535),
         view.safeLeft.coerceIn(0, 65535), view.safeTop.coerceIn(0, 65535), view.safeRight.coerceIn(0, 65535), view.safeBottom.coerceIn(0, 65535),

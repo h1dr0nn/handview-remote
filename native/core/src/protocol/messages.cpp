@@ -106,6 +106,19 @@ std::vector<std::uint8_t> encode(const Message& message) {
                 w.f32(d.pressure);
             }
         }
+        if constexpr (std::is_same_v<T, Sensor>) {
+            type = 33;
+            w.u8(static_cast<std::uint8_t>(m.kind));
+            w.f32(m.x);
+            w.f32(m.y);
+            w.f32(m.z);
+        }
+        if constexpr (std::is_same_v<T, Key>) {
+            type = 34;
+            w.u32(m.keycode);
+            w.u32(m.unicode);
+            w.u8(m.pressed);
+        }
         if constexpr (std::is_same_v<T, RequestKeyframe>) {
             type = 48;
         }
@@ -282,6 +295,22 @@ DecodeResult decode(const std::uint8_t* data, std::size_t size, Channel channel)
             d.pressure = r.f32();
             m.pointers.push_back(d);
         }
+        message = std::move(m); break;
+    }
+    case 33: {
+        Sensor m;
+        m.kind = r.enumeration<SensorKind>();
+        m.x = r.f32();
+        m.y = r.f32();
+        m.z = r.f32();
+        message = std::move(m); break;
+    }
+    case 34: {
+        Key m;
+        m.keycode = r.u32();
+        m.unicode = r.u32();
+        m.pressed = r.u8();
+        r.enums = m.pressed <= 1 && r.enums;
         message = std::move(m); break;
     }
     case 48: {

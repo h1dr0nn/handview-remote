@@ -19,6 +19,7 @@ enum class Encoder(val wire: Int) { Nvenc(0), MfHardware(1), MfSoftware(2) }
 enum class Orientation(val wire: Int) { Portrait(0), Landscape(1) }
 enum class EditorStateValue(val wire: Int) { Stopped(0), Playing(1), Paused(2), Compiling(3), Reloading(4) }
 enum class Cmd(val wire: Int) { Play(1), Pause(2), Step(3), Stop(4) }
+enum class SensorKind(val wire: Int) { Accelerometer(1), Gyroscope(2), Gravity(3), Magnetometer(4) }
 enum class Result(val wire: Int) { Ok(0), Ignored(1), Busy(2) }
 enum class Phase(val wire: Int) { Began(0), Moved(1), Stationary(2), Ended(3), Canceled(4) }
 enum class RejectReason(val wire: Int) { BadVersion(0), BadToken(1), Busy(2) }
@@ -46,6 +47,10 @@ data class StreamConfigChanged(val width: Int, val height: Int, val orientation:
 data class StreamPaused(val reason: PauseReason) : Message
 data class Error(val source: ErrorSource, val code: ErrorCode) : Message
 data class FrameAck(val frameSeq: Long) : Message
+// A phone sensor reading in Godot's convention (SPEC 3).
+data class Sensor(val kind: SensorKind, val x: Float, val y: Float, val z: Float) : Message
+// A key from the phone's keyboard: Godot Key code, Unicode character, state.
+data class Key(val keycode: Long, val unicode: Long, val pressed: Boolean) : Message
 // The user's video choices; 0 means automatic.
 data class StreamPrefs(val maxLongSide: Int, val maxShortSide: Int, val maxFps: Int, val bitrateKbps: Long) : Message
 // Insets are the unsafe edges of the area (cutout, system bars), in its pixels.
@@ -148,6 +153,19 @@ fun encode(message: Message): ByteArray {
             w.u8(m.source.wire)
             w.u16(m.code.wire)
             52
+        }
+        is Sensor -> {
+            w.u8(m.kind.wire)
+            w.f32(m.x)
+            w.f32(m.y)
+            w.f32(m.z)
+            33
+        }
+        is Key -> {
+            w.u32(m.keycode)
+            w.u32(m.unicode)
+            w.u8(if (m.pressed) 1 else 0)
+            34
         }
         is FrameAck -> {
             w.u32(m.frameSeq)
@@ -266,6 +284,12 @@ fun decode(data: ByteArray, offset: Int, size: Int, channel: Channel): DecodeRes
                 if (header.length != 13L + 14L * count) return DecodeResult(DecodeStatus.BAD_SIZE, total)
                 r.enums = count in 1..10
                 Touch(touchSeq, eventTimeUs, List(count) { Pointer(r.u8(), r.enumeration<Phase> { it.wire }, r.f32(), r.f32(), r.f32()) })
+            }
+            33 -> Sensor(r.enumeration<SensorKind> { it.wire }, r.f32(), r.f32(), r.f32())
+            34 -> {
+                val keycode = r.u32(); val unicode = r.u32(); val pressed = r.u8()
+                r.enums = pressed <= 1 && r.enums
+                Key(keycode, unicode, pressed == 1)
             }
             48 -> RequestKeyframe
             49 -> DecoderStats(r.u16(), r.u16())

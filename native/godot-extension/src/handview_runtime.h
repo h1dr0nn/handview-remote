@@ -32,6 +32,11 @@ public:
 
     // Array of Dictionary {id, phase, x, y, pressure}; x and y are 0..1.
     Array take_touches();
+    // Array of Dictionary {keycode, unicode, pressed}.
+    Array take_keys();
+    // Dictionary with "accelerometer", "gyroscope", "gravity", "magnetometer"
+    // (Vector3) for the sensors the phone has sent.
+    Dictionary get_sensors() const;
     bool wants_frame();
     void submit_frame(const PackedByteArray& rgba, int64_t width, int64_t height);
     int64_t get_target_fps() const;

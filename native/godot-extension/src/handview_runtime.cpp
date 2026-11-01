@@ -30,6 +30,8 @@ void HandviewRuntime::_bind_methods() {
     ClassDB::bind_method(D_METHOD("start", "link_port", "token_hex"), &HandviewRuntime::start);
     ClassDB::bind_method(D_METHOD("stop"), &HandviewRuntime::stop);
     ClassDB::bind_method(D_METHOD("take_touches"), &HandviewRuntime::take_touches);
+    ClassDB::bind_method(D_METHOD("take_keys"), &HandviewRuntime::take_keys);
+    ClassDB::bind_method(D_METHOD("get_sensors"), &HandviewRuntime::get_sensors);
     ClassDB::bind_method(D_METHOD("wants_frame"), &HandviewRuntime::wants_frame);
     ClassDB::bind_method(D_METHOD("submit_frame", "rgba", "width", "height"), &HandviewRuntime::submit_frame);
     ClassDB::bind_method(D_METHOD("get_target_fps"), &HandviewRuntime::get_target_fps);
@@ -60,6 +62,30 @@ void HandviewRuntime::stop() {
         controller_->close();
         controller_.reset();
     }
+}
+
+Array HandviewRuntime::take_keys() {
+    Array result;
+    if (!controller_) return result;
+    for (const auto& key : controller_->take_keys()) {
+        Dictionary event;
+        event["keycode"] = static_cast<int64_t>(key.keycode);
+        event["unicode"] = static_cast<int64_t>(key.unicode);
+        event["pressed"] = key.pressed;
+        result.push_back(event);
+    }
+    return result;
+}
+
+Dictionary HandviewRuntime::get_sensors() const {
+    Dictionary result;
+    if (!controller_) return result;
+    static const char* names[4] = {"accelerometer", "gyroscope", "gravity", "magnetometer"};
+    const auto values = controller_->sensors();
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (values[i].valid) result[names[i]] = Vector3(values[i].x, values[i].y, values[i].z);
+    }
+    return result;
 }
 
 Array HandviewRuntime::take_touches() {

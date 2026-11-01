@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity(), Actions {
     private val state = MutableStateFlow(CastState())
     private val app = MutableStateFlow(AppState())
     private lateinit var store: SettingsStore
+    private lateinit var sensors: PhoneSensors
     private val main = Handler(Looper.getMainLooper())
     private val latency = LatencyTracker()
     private var client: SessionClient? = null
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity(), Actions {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         main.post(refresh)
         store = SettingsStore(this)
+        sensors = PhoneSensors(this) { client?.sendSensor(it) }
         app.value = AppState(settings = store.load())
         applyTheme()
         orient(Orientation.Portrait)
@@ -82,8 +84,28 @@ class MainActivity : ComponentActivity(), Actions {
         if (savedInstanceState == null || intent.hasExtra("token")) launch(intent)
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); launch(intent) }
-    override fun onResume() { super.onResume(); resumed = true; maybeAutoConnect() }
-    override fun onPause() { resumed = false; super.onPause() }
+    override fun onResume() { super.onResume(); resumed = true; startSensors(); maybeAutoConnect() }
+    override fun onPause() { resumed = false; sensors.stop(); super.onPause() }
+    private fun startSensors() {
+        val s = app.value.settings
+        if (client != null && state.value.welcome != null && (s.accelerometer || s.gyroscope)) sensors.start(s.accelerometer, s.gyroscope) else sensors.stop()
+    }
+    override fun toggleKeyboard() { state.value = state.value.copy(keyboardOpen = !state.value.keyboardOpen) }
+    override fun typeKey(keycode: Long, unicode: Long) {
+        client?.sendKey(Key(keycode, unicode, true))
+        client?.sendKey(Key(keycode, unicode, false))
+    }
+    // A hardware keyboard goes to the game too, while one is playing. Back,
+    // volume and other keys without a Godot equivalent keep their usual job.
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean = hardwareKey(event, true) || super.onKeyDown(keyCode, event)
+    override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean = hardwareKey(event, false) || super.onKeyUp(keyCode, event)
+    private fun hardwareKey(event: android.view.KeyEvent, pressed: Boolean): Boolean {
+        val playing = client != null && app.value.settings.keyboard && state.value.editor == EditorStateValue.Playing
+        val keycode = io.github.h1dr0nn.handview.client.GodotKeys.fromAndroid(event.keyCode)
+        if (!playing || keycode == null || state.value.keyboardOpen) return false
+        client?.sendKey(Key(keycode, event.unicodeChar.toLong(), pressed))
+        return true
+    }
     private fun launch(intent: Intent) {
         val next = intent.getStringExtra("token")
         intent.removeExtra("token")
@@ -158,8 +180,9 @@ class MainActivity : ComponentActivity(), Actions {
                 // The stage may have been measured before the session existed.
                 client?.sendStreamPrefs(app.value.settings.streamPrefs())
                 if (view.width > 0 && view.height > 0) client?.sendViewSize(view)
-                state.value = CastState(welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
+                state.value = CastState(keyboard = app.value.settings.keyboard, welcome = w, editor = w.editorState, width = if (w.width > 0 && w.height > 0) w.width else screenWidth, height = if (w.width > 0 && w.height > 0) w.height else screenHeight, orientation = w.orientation)
                 orient(w.orientation)
+                startSensors()
             }
             is SessionClient.Event.Rejected -> end(when (event.reason) {
                 // A stale offer (the editor restarted): forget it, a new one follows.
@@ -209,6 +232,8 @@ class MainActivity : ComponentActivity(), Actions {
         val video = settings.streamPrefs() != app.value.settings.streamPrefs()
         store.save(settings); app.value = app.value.copy(settings = settings); applyTheme()
         if (video) client?.sendStreamPrefs(settings.streamPrefs())
+        state.value = state.value.copy(keyboard = settings.keyboard, keyboardOpen = state.value.keyboardOpen && settings.keyboard)
+        startSensors()
     }
     override fun toggleTheme() { change(app.value.settings.copy(dark = !Palette.dark)) }
     private fun applyTheme() {
@@ -228,6 +253,7 @@ class MainActivity : ComponentActivity(), Actions {
     }
     override fun disconnect() { autoConnect = false; closeSession(); app.value = app.value.copy(screen = Screen.Home, notice = null) }
     private fun closeSession() {
+        if (::sensors.isInitialized) sensors.stop()
         generation++; decoder?.close(); decoder = null
         client?.close(ByeReason.Normal); client = null; token = null
         latency.clear(); touchReady = false; state.value = CastState()

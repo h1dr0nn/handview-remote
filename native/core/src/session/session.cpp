@@ -55,7 +55,7 @@ bool GameLink::connect(std::uint16_t port, const std::array<std::uint8_t,32>& to
     impl_->thread = std::thread([this,peer] {
         try { read_peer(*peer, Channel::Link, impl_->log, [this](const net::Frame& frame) {
             const auto& m = frame.message;
-            if (std::holds_alternative<LinkStart>(m) || std::holds_alternative<LinkStop>(m) || std::holds_alternative<Touch>(m) || std::holds_alternative<FrameAck>(m) || std::holds_alternative<DecoderStats>(m) || std::holds_alternative<RequestKeyframe>(m) || std::holds_alternative<ViewSize>(m)) impl_->incoming.push(m);
+            if (std::holds_alternative<LinkStart>(m) || std::holds_alternative<LinkStop>(m) || std::holds_alternative<Touch>(m) || std::holds_alternative<FrameAck>(m) || std::holds_alternative<DecoderStats>(m) || std::holds_alternative<RequestKeyframe>(m) || std::holds_alternative<ViewSize>(m) || std::holds_alternative<Sensor>(m) || std::holds_alternative<Key>(m)) impl_->incoming.push(m);
             return true;
         }); } catch (...) {}
         impl_->live = false; peer->socket.close();
@@ -203,7 +203,7 @@ struct EditorServer::Impl {
                 // Kept for a game that links later; forwarded to one already linked.
                 std::shared_ptr<Peer> g; { std::lock_guard lock(mutex); own->view=*view; g=game; } if(g) g->writer.send_bytes(f.bytes);
             }
-            else if(std::holds_alternative<Touch>(f.message)||std::holds_alternative<FrameAck>(f.message)||std::holds_alternative<DecoderStats>(f.message)||std::holds_alternative<RequestKeyframe>(f.message)) {
+            else if(std::holds_alternative<Touch>(f.message)||std::holds_alternative<Sensor>(f.message)||std::holds_alternative<Key>(f.message)||std::holds_alternative<FrameAck>(f.message)||std::holds_alternative<DecoderStats>(f.message)||std::holds_alternative<RequestKeyframe>(f.message)) {
                 std::shared_ptr<Peer> g; { std::lock_guard lock(mutex); g=game; } if(g) g->writer.send_bytes(f.bytes);
             }
             return true;

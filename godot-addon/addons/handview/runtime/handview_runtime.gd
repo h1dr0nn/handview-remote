@@ -89,6 +89,8 @@ func _process(_delta: float) -> void:
 		_applied_fps = fps
 		Engine.max_fps = fps
 	_inject_touches()
+	_inject_keys()
+	_apply_sensors()
 
 
 # The usable part of the game window while a phone shows it, in window
@@ -140,6 +142,34 @@ static func fit_size(base: Vector2i, view: Vector2i) -> Vector2i:
 	else:
 		size.x = roundi(float(base.y) * view.x / view.y)
 	return Vector2i(maxi(2, size.x - size.x % 2), maxi(2, size.y - size.y % 2))
+
+
+# Keys typed on the phone, as Godot key events.
+func _inject_keys() -> void:
+	var keys: Array = _runtime.call("take_keys")
+	if keys.is_empty():
+		return
+	for key: Dictionary in keys:
+		var event: InputEventKey = InputEventKey.new()
+		event.keycode = int(key["keycode"]) as Key
+		event.physical_keycode = event.keycode
+		event.unicode = int(key["unicode"])
+		event.pressed = bool(key["pressed"])
+		Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+
+# The phone's motion sensors replace the PC's (which has none).
+func _apply_sensors() -> void:
+	var sensors: Dictionary = _runtime.call("get_sensors")
+	if sensors.has("accelerometer"):
+		Input.set_accelerometer(sensors["accelerometer"])
+	if sensors.has("gravity"):
+		Input.set_gravity(sensors["gravity"])
+	if sensors.has("gyroscope"):
+		Input.set_gyroscope(sensors["gyroscope"])
+	if sensors.has("magnetometer"):
+		Input.set_magnetometer(sensors["magnetometer"])
 
 
 func _inject_touches() -> void:

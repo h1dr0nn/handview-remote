@@ -80,6 +80,8 @@ struct StreamController::Impl {
     bool encoding = false;
     std::uint64_t last_capture_us = 0;
     std::vector<QueuedTouch> touches;
+    std::vector<KeyEvent> keys;
+    std::array<SensorReading, 4> sensor_values{};
     std::map<std::uint8_t, TouchEvent> held;
     std::uint32_t last_touch_seq = 0;
     StreamStatus status;
@@ -158,6 +160,12 @@ struct StreamController::Impl {
                     held[pointer.id] = event;
                 }
             }
+        } else if (const auto* key = std::get_if<Key>(&message)) {
+            std::lock_guard lock(mutex);
+            keys.push_back({key->keycode, key->unicode, key->pressed != 0});
+        } else if (const auto* sensor = std::get_if<Sensor>(&message)) {
+            std::lock_guard lock(mutex);
+            sensor_values[static_cast<std::size_t>(sensor->kind) - 1] = {true, sensor->x, sensor->y, sensor->z};
         } else if (const auto* ack = std::get_if<FrameAck>(&message)) {
             std::lock_guard lock(mutex);
             inflight.on_ack(ack->frameSeq);
@@ -338,6 +346,18 @@ std::vector<TouchEvent> StreamController::take_touches() {
         impl_->delivered_touch_seq = item.seq;
     }
     return events;
+}
+
+std::vector<KeyEvent> StreamController::take_keys() {
+    std::vector<KeyEvent> keys;
+    std::lock_guard lock(impl_->mutex);
+    keys.swap(impl_->keys);
+    return keys;
+}
+
+std::array<SensorReading, 4> StreamController::sensors() const {
+    std::lock_guard lock(impl_->mutex);
+    return impl_->sensor_values;
 }
 
 bool StreamController::wants_frame(std::uint64_t now) {

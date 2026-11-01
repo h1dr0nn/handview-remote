@@ -10,7 +10,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import io.github.h1dr0nn.handview.client.GodotKeys
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,6 +59,9 @@ data class CastState(
     val message: Int? = null,
     // Video only, no chrome; Back leaves it.
     val fullScreen: Boolean = false,
+    // The Keyboard setting is on, and the soft keyboard is up.
+    val keyboard: Boolean = false,
+    val keyboardOpen: Boolean = false,
 )
 
 // Everything outside a live session: which screen is open and what it shows.
@@ -59,6 +76,9 @@ interface Actions {
     fun command(cmd: Cmd)
     fun disconnect()
     fun fullScreen(on: Boolean)
+    fun toggleKeyboard()
+    // A key typed on the phone: press and release.
+    fun typeKey(keycode: Long, unicode: Long)
     // The area the video is shown in, with its unsafe edges (ViewSize).
     fun viewSize(view: ViewSize)
     fun connectTo(offer: SessionOffer)
@@ -145,6 +165,7 @@ private fun CastPortrait(ui: CastState, actions: Actions) {
         Stage(ui, actions, Modifier.weight(1f).fillMaxWidth())
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp).height(56.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.weight(1f).fillMaxHeight()) }
+            if (ui.keyboard) KeyboardTile(ui, actions, Modifier.width(48.dp).fillMaxHeight())
             FullScreenTile(ui, actions, Modifier.width(48.dp).fillMaxHeight())
             DisconnectTile(actions, Modifier.width(48.dp).fillMaxHeight())
         }
@@ -161,6 +182,7 @@ private fun CastLandscape(ui: CastState, actions: Actions) {
         }
         Column(Modifier.width(80.dp).fillMaxHeight().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Control.entries.forEach { ControlTile(it, ui, actions, Modifier.fillMaxWidth().weight(1f)) }
+            if (ui.keyboard) KeyboardTile(ui, actions, Modifier.fillMaxWidth().height(44.dp))
             FullScreenTile(ui, actions, Modifier.fillMaxWidth().height(44.dp))
             DisconnectTile(actions, Modifier.fillMaxWidth().height(44.dp))
         }
@@ -184,6 +206,43 @@ private fun ControlTile(control: Control, ui: CastState, actions: Actions, modif
         Spacer(Modifier.height(4.dp))
         Text(stringResource(if (resume) R.string.resume else control.label).uppercase(), style = Type.Button, color = content, maxLines = 1)
     }
+}
+
+@Composable
+private fun KeyboardTile(ui: CastState, actions: Actions, modifier: Modifier) {
+    val label = stringResource(R.string.keyboard)
+    val on = ui.editor != EditorStateValue.Stopped
+    Box(
+        modifier.alpha(if (on) 1f else 0.4f).clip(CardShape).background(if (ui.keyboardOpen) Palette.Accent else Palette.Card)
+            .clickable(enabled = on, role = Role.Button, onClickLabel = label) { actions.toggleKeyboard() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Keyboard, label, Modifier.size(20.dp), tint = if (ui.keyboardOpen) Palette.OnAccent else Palette.Ink)
+    }
+    if (ui.keyboardOpen) TypingField(actions)
+}
+
+// An invisible field that holds the soft keyboard open and turns what it
+// receives into keys: it keeps one space so a Backspace still has something
+// to delete.
+@Composable
+private fun TypingField(actions: Actions) {
+    val focus = remember { FocusRequester() }
+    var value by remember { mutableStateOf(TextFieldValue(" ", TextRange(1))) }
+    BasicTextField(
+        value,
+        onValueChange = { next ->
+            when {
+                next.text.isEmpty() -> actions.typeKey(GodotKeys.BACKSPACE, 0)
+                next.text.length > 1 -> next.text.drop(1).forEach { c -> actions.typeKey(GodotKeys.fromChar(c), c.code.toLong()) }
+            }
+            value = TextFieldValue(" ", TextRange(1))
+        },
+        modifier = Modifier.size(1.dp).alpha(0f).focusRequester(focus),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Send),
+        keyboardActions = KeyboardActions(onSend = { actions.typeKey(GodotKeys.ENTER, 0) }),
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 @Composable

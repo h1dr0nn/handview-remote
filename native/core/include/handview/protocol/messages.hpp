@@ -25,6 +25,8 @@ enum class Result : std::uint8_t { Ok = 0, Ignored = 1, Busy = 2 };
 constexpr bool valid(Result value) { return value == Result::Ok || value == Result::Ignored || value == Result::Busy; }
 enum class Phase : std::uint8_t { Began = 0, Moved = 1, Stationary = 2, Ended = 3, Canceled = 4 };
 constexpr bool valid(Phase value) { return value == Phase::Began || value == Phase::Moved || value == Phase::Stationary || value == Phase::Ended || value == Phase::Canceled; }
+enum class SensorKind : std::uint8_t { Accelerometer = 1, Gyroscope = 2, Gravity = 3, Magnetometer = 4 };
+constexpr bool valid(SensorKind value) { return value >= SensorKind::Accelerometer && value <= SensorKind::Magnetometer; }
 enum class RejectReason : std::uint8_t { BadVersion = 0, BadToken = 1, Busy = 2 };
 constexpr bool valid(RejectReason value) { return value == RejectReason::BadVersion || value == RejectReason::BadToken || value == RejectReason::Busy; }
 enum class PauseReason : std::uint8_t { NotPlaying = 0, Paused = 1 };
@@ -100,6 +102,19 @@ struct Touch {
     std::uint64_t eventTimeUs{};
     std::vector<Pointer> pointers{};
 };
+// A phone sensor reading, already in Godot's convention (SPEC 3).
+struct Sensor {
+    SensorKind kind{SensorKind::Accelerometer};
+    float x{};
+    float y{};
+    float z{};
+};
+// A key from the phone's keyboard: Godot Key code, Unicode character, state.
+struct Key {
+    std::uint32_t keycode{};
+    std::uint32_t unicode{};
+    std::uint8_t pressed{};
+};
 struct RequestKeyframe {
 };
 struct DecoderStats {
@@ -168,7 +183,7 @@ struct LinkStart {
 struct LinkStop {
 };
 struct Unknown { std::uint16_t type = 0; std::uint32_t length = 0; };
-using Message = std::variant<Hello, Welcome, Reject, VideoAttach, Command, CommandResult, EditorState, Touch, RequestKeyframe, DecoderStats, StreamConfigChanged, StreamPaused, Error, FrameAck, ViewSize, StreamPrefs, Ping, Pong, Bye, VideoFrame, LinkHello, LinkStart, LinkStop, Unknown>;
+using Message = std::variant<Hello, Welcome, Reject, VideoAttach, Command, CommandResult, EditorState, Touch, Sensor, Key, RequestKeyframe, DecoderStats, StreamConfigChanged, StreamPaused, Error, FrameAck, ViewSize, StreamPrefs, Ping, Pong, Bye, VideoFrame, LinkHello, LinkStart, LinkStop, Unknown>;
 enum class DecodeStatus { Ok, NeedMore, TooLarge, UnknownType, BadSize, BadEnum };
 // Incomplete or oversized input consumes zero bytes; complete messages consume their full frame.
 struct DecodeResult { DecodeStatus status; std::size_t consumed = 0; Message message{}; };

@@ -218,11 +218,11 @@ fun SettingsScreen(settings: AppSettings, version: String, change: (AppSettings)
         Group {
             SwitchRow(stringResource(R.string.touch), stringResource(R.string.touch_hint), settings.touch, soon = false) { change(settings.copy(touch = it)) }
             GroupDivider()
-            SwitchRow(stringResource(R.string.gyroscope), null, settings.gyroscope, soon = true) { change(settings.copy(gyroscope = it)) }
+            SwitchRow(stringResource(R.string.gyroscope), null, settings.gyroscope, soon = false) { change(settings.copy(gyroscope = it)) }
             GroupDivider()
-            SwitchRow(stringResource(R.string.accelerometer), null, settings.accelerometer, soon = true) { change(settings.copy(accelerometer = it)) }
+            SwitchRow(stringResource(R.string.accelerometer), null, settings.accelerometer, soon = false) { change(settings.copy(accelerometer = it)) }
             GroupDivider()
-            SwitchRow(stringResource(R.string.keyboard), null, settings.keyboard, soon = true) { change(settings.copy(keyboard = it)) }
+            SwitchRow(stringResource(R.string.keyboard), null, settings.keyboard, soon = false) { change(settings.copy(keyboard = it)) }
         }
         SectionLabel(stringResource(R.string.connection))
         Group {

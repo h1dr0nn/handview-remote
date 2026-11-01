@@ -41,6 +41,8 @@ Sizes are payload sizes. `N` = `decoderCount`, `M` = `modelLen`, `C` = `count`, 
 | `0x0011` | CommandResult | Host to App | `u8 cmd`, `u8 result`, `u8 editorState` | 3 |
 | `0x0012` | EditorState | Host to App | `u8 state` | 1 |
 | `0x0020` | Touch | App to Host | `u32 touchSeq`, `u64 eventTimeUs`, `u8 count`, then C x `{u8 id, u8 phase, f32 x, f32 y, f32 pressure}` | 13 + 14C |
+| `0x0021` | Sensor | App to Host | `u8 kind`, `f32 x`, `f32 y`, `f32 z` | 13 |
+| `0x0022` | Key | App to Host | `u32 keycode`, `u32 unicode`, `u8 pressed` | 9 |
 | `0x0030` | RequestKeyframe | App to Host | empty | 0 |
 | `0x0031` | DecoderStats | App to Host | `u16 pendingOutputs`, `u16 droppedDisplays` | 4 |
 | `0x0032` | StreamConfigChanged | Host to App | `u16 width`, `u16 height`, `u8 orientation`, `u8 fps`, `u32 bitrateKbps` | 10 |
@@ -59,6 +61,8 @@ Field notes:
 - `Hello.decoderCount` may be 0. `Hello.model` is the device model for logs.
 - `Touch.count` is 1 to 10. `x`, `y` are normalized 0..1 over the video area; values outside 0..1 are clamped by the host. `pressure` is 0..1.
 - `DecoderStats` is sent every 250 ms.
+- `Sensor` values are in Godot's convention for Android (the same rotation for the display orientation and signs as Godot's own Android port): m/s^2 for accelerometer and gravity, rad/s for gyroscope, microtesla for magnetometer. The app sends them while the user has the sensor turned on, at about 60 Hz.
+- `Key.keycode` is a Godot `Key` value (letters as uppercase ASCII, special keys in the `KEY_SPECIAL` range), `unicode` the typed character or 0, `pressed` 1 or 0.
 - `FrameAck` is sent for every frame the decoder has output, and for frames the app drops before decoding (while it waits for an IDR after a decoder restart).
 - `StreamConfigChanged`: the next `VideoFrame` is an IDR.
 - `StreamPrefs` holds the user's video choices, 0 meaning automatic. The app sends it after `Welcome` and when the user changes a setting. The host applies it at once: stream size = min(Resolution Cap, `maxLongSide` x `maxShortSide`), frame rate `maxFps`, and `bitrateKbps` replaces the host's default; the stream restarts with `StreamConfigChanged` and an IDR.
@@ -77,6 +81,7 @@ Field notes:
 | `orientation` | 0 Portrait, 1 Landscape |
 | `editorState` | 0 Stopped, 1 Playing, 2 Paused, 3 Compiling, 4 Reloading |
 | `cmd` | 1 Play, 2 Pause, 3 Step, 4 Stop |
+| `Sensor.kind` | 1 Accelerometer, 2 Gyroscope, 3 Gravity, 4 Magnetometer |
 | `result` | 0 Ok, 1 Ignored, 2 Busy |
 | touch `phase` | 0 Began, 1 Moved, 2 Stationary, 3 Ended, 4 Canceled |
 | `Reject.reason` | 0 BadVersion, 1 BadToken, 2 Busy |

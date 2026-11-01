@@ -37,6 +37,8 @@ int main(){
  app.writer.send(Touch{7,20,{{0,Phase::Began,0.25f,0.5f,1.0f}}});CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<Touch>(*m) && std::get<Touch>(*m).touchSeq==7;}));
  app.writer.send(FrameAck{17}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<FrameAck>(*m) && std::get<FrameAck>(*m).frameSeq==17;}));
  app.writer.send(DecoderStats{2,3}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<DecoderStats>(*m) && std::get<DecoderStats>(*m).pendingOutputs==2;}));
+ app.writer.send(Sensor{SensorKind::Gyroscope,0.5f,-1.0f,2.0f}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<Sensor>(*m) && std::get<Sensor>(*m).kind==SensorKind::Gyroscope;}));
+ app.writer.send(Key{65,97,1}); CHECK(eventually([&]{auto m=game.poll();return m && std::holds_alternative<Key>(*m) && std::get<Key>(*m).unicode==97;}));
  app.writer.send(StreamPrefs{1280,720,30,4000}); std::optional<LinkStart> limited;
  CHECK(eventually([&]{auto m=game.poll();if(m && std::holds_alternative<LinkStart>(*m))limited=std::get<LinkStart>(*m);return limited.has_value();}));
  CHECK(limited && limited->maxW==1280 && limited->maxH==720 && limited->maxFps==30 && limited->bitrateKbps==4000);

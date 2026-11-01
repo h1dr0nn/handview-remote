@@ -25,6 +25,18 @@ struct TouchEvent {
     float pressure = 0.0f;
 };
 
+struct KeyEvent {
+    std::uint32_t keycode = 0;  // Godot Key
+    std::uint32_t unicode = 0;
+    bool pressed = false;
+};
+
+// Latest value per sensor; `valid` stays false until the phone sent one.
+struct SensorReading {
+    bool valid = false;
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+};
+
 struct StreamOptions {
     flow::BackpressureConfig backpressure{};
     flow::KeyframeConfig keyframe{};
@@ -60,6 +72,12 @@ public:
     // Main thread, once per frame before the game update. Touch events
     // returned here count as processed by the frame drawn next.
     std::vector<TouchEvent> take_touches();
+
+    // Main thread: keys from the phone since the last call, in order.
+    std::vector<KeyEvent> take_keys();
+
+    // Latest phone sensor values, indexed by SensorKind - 1.
+    std::array<SensorReading, 4> sensors() const;
 
     // Main thread, after the frame is drawn: true when this frame should be
     // read back and submitted (streaming, in-flight limit, frame pacing).
