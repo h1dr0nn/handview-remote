@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Handview</string>
-    <string name="usb_waiting_title">Waiting for USB session</string>
+    <string name="usb_waiting_title">Waiting for USB Session</string>
+    <string name="usb_steps">1. Connect the phone over USB and turn on USB debugging.\n\n2. Open Handview in the Godot editor.\n\n3. Press Start Session.</string>
+    <string name="connecting">Connecting</string>
+    <string name="status">Connected · USB · %1$s · %2$d FPS</string>
+    <string name="latency">Touch to display p50 %1$s ms · p95 %2$s ms</string>
+    <string name="no_sample">-</string>
+    <string name="nvenc">NVENC</string>
+    <string name="mf_hardware">MF Hardware</string>
+    <string name="software">Software</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="step">Step</string>
+    <string name="stop">Stop</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="not_playing">Not playing</string>
+    <string name="paused">Paused</string>
+    <string name="invalid_session">Session could not start: invalid launch details.</string>
+    <string name="reject_token">Session rejected: the token is invalid.</string>
+    <string name="reject_version">Session rejected: the protocol version is unsupported.</string>
+    <string name="reject_busy">Session rejected: the editor already has a session.</string>
+    <string name="ended_connection">Session ended: the editor closed the connection.</string>
+    <string name="ended_timeout">Session ended: the editor stopped responding.</string>
+    <string name="ended_protocol">Session ended: a protocol error occurred.</string>
+    <string name="ended_compiling">Session ended: the editor is compiling.</string>
+    <string name="ended_reloading">Session ended: the editor is reloading.</string>
+    <string name="ended_replaced">Session ended: another session replaced this one.</string>
+    <string name="stream_error">The stream reported an error.</string>
+    <string name="device_error">Session could not start: device capabilities are unavailable.</string>
 </resources>

@@ -39,6 +39,8 @@ android {
 
 dependencies {
     implementation(project(":protocol"))
+    implementation(project(":client"))
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
