@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    name: Native core + GDExtension (Windows x86_64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # godot-cpp generates its bindings with Python at configure time.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure
+        run: cmake --preset windows-x64 -DGODOTCPP_TARGET=template_debug
+
+      - name: Build
+        run: cmake --build --preset windows-x64-debug --parallel
+
+      - name: Protocol unit tests
+        run: ctest --preset windows-x64-debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gdextension-windows-x86_64-debug
+          path: godot-addon/addons/handview/bin/*.dll
+          if-no-files-found: error
+
+  android:
+    name: Android app (debug APK)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Protocol unit tests + debug APK
+        run: ./gradlew :protocol:test :app:assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: handview-debug-apk
+          path: android-app/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
