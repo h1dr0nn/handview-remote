@@ -167,3 +167,8 @@ static func _port_free(port: int) -> bool:
 		return false
 	server.stop()
 	return true
+
+
+# True when nothing on the PC listens on this loopback port.
+static func is_port_free(port: int) -> bool:
+	return _port_free(port)

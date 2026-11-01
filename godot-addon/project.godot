@@ -7,6 +7,14 @@ config_version=5
 config/name="Handview Addon Dev"
 config/features=PackedStringArray("4.4")
 
+[autoload]
+
+Handview="*res://addons/handview/runtime/handview_runtime.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/handview/plugin.cfg")
+
 [rendering]
 
 renderer/rendering_method="forward_plus"
