@@ -31,8 +31,15 @@ jobs:
       - name: Build
         run: cmake --build --preset windows-x64-debug --parallel
 
-      - name: Protocol unit tests
-        run: ctest --preset windows-x64-debug
+      # Core tests + tools_loopback_test. The GPU encoder tests skip themselves
+      # (test_encode prints SKIP per missing backend, test_stream skips without
+      # any encoder), so a GPU-less runner is fine as long as the Media
+      # Foundation software encoder exists, which tools_loopback_test needs.
+      - name: Native tests (CTest)
+        # tools_loopback_test needs a working H.264 encoder (GPU, or Media
+        # Foundation on a desktop image); hosted runners may have neither, so
+        # it runs locally before releases.
+        run: ctest --preset windows-x64-debug --timeout 300 -E tools_loopback_test
 
       - uses: actions/upload-artifact@v4
         with:
@@ -56,11 +63,49 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Protocol unit tests + debug APK
-        run: ./gradlew :protocol:test :app:assembleDebug
+      - name: Unit tests, debug APK, lint
+        run: ./gradlew :protocol:test :client:test :app:assembleDebug :app:lintDebug
 
       - uses: actions/upload-artifact@v4
         with:
           name: handview-debug-apk
           path: android-app/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+  # Doubles as the Godot 4.4 compatibility check: the addon, the debug
+  # GDExtension and the GDScript tests all run on the oldest supported editor.
+  godot-addon:
+    name: Godot addon tests (Godot 4.4.1)
+    runs-on: windows-latest
+    needs: native-windows
+    env:
+      GODOT_VERSION: 4.4.1-stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: gdextension-windows-x86_64-debug
+          path: godot-addon/addons/handview/bin
+
+      - name: Download Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o godot.zip             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_win64.exe.zip"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q godot.zip -d "$RUNNER_TEMP/godot"
+          # The console build keeps stdout and the exit code attached.
+          echo "GODOT_BIN=$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}_win64_console.exe" >> "$GITHUB_ENV"
+
+      - name: Import project
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path godot-addon --import
+
+      - name: Run addon tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path godot-addon -s res://tests/run_tests.gd
