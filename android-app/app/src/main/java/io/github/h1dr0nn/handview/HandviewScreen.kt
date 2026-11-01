@@ -61,6 +61,7 @@ interface Actions {
     fun open(screen: Screen)
     fun wifiNotReady()
     fun change(settings: AppSettings)
+    fun toggleTheme()
     fun surface(): SurfaceView
     val version: String
 }
@@ -81,7 +82,7 @@ fun HandviewScreen(ui: CastState, app: AppState, actions: Actions) {
             else -> {
                 if (app.screen != Screen.Home) BackHandler { actions.open(Screen.Home) }
                 when (app.screen) {
-                    Screen.Home -> HomeScreen(app.offers, app.notice, actions::open, actions::connectTo, actions::wifiNotReady)
+                    Screen.Home -> HomeScreen(app.offers, app.notice, actions::open, actions::connectTo, actions::wifiNotReady, actions::toggleTheme)
                     Screen.Usb -> UsbScreen(connecting = false, message = ui.message) { actions.open(Screen.Home) }
                     Screen.ScanQr -> ScanQrScreen({ actions.open(Screen.Home) }, { actions.open(Screen.Home) })
                     Screen.Settings -> SettingsScreen(app.settings, actions.version, actions::change) { actions.open(Screen.Home) }
@@ -208,7 +209,12 @@ private fun Stage(ui: CastState, actions: Actions, modifier: Modifier) {
     BoxWithConstraints(modifier.background(Palette.Stage).onSizeChanged { actions.viewSize(it.width, it.height) }, contentAlignment = Alignment.Center) {
         val screen = LocalConfiguration.current
         val ratio = if (ui.width > 0 && ui.height > 0) ui.width.toFloat() / ui.height else screen.screenWidthDp.coerceAtLeast(1).toFloat() / screen.screenHeightDp.coerceAtLeast(1)
-        val videoModifier = if (maxWidth / maxHeight > ratio) Modifier.fillMaxHeight().aspectRatio(ratio) else Modifier.fillMaxWidth().aspectRatio(ratio)
+        // Before a stream there is no picture to letterbox: fill the stage.
+        val videoModifier = when {
+            ui.editor == EditorStateValue.Stopped -> Modifier.fillMaxSize()
+            maxWidth / maxHeight > ratio -> Modifier.fillMaxHeight().aspectRatio(ratio)
+            else -> Modifier.fillMaxWidth().aspectRatio(ratio)
+        }
         AndroidView(factory = { actions.surface() }, modifier = videoModifier)
         when (ui.editor) {
             EditorStateValue.Stopped -> Column(

@@ -281,7 +281,7 @@ func refresh_devices() -> void:
 	if _refreshing:
 		return
 	_refreshing = true
-	_spawn(_task_refresh.bind(_find_adb()))
+	_spawn(_task_refresh.bind(_find_adb(), _port, _armed.keys()))
 
 
 # The Refresh button also retries devices whose preparation failed.
@@ -290,14 +290,20 @@ func retry_failed() -> void:
 	refresh_devices()
 
 
-func _task_refresh(adb_path: String) -> void:
+func _task_refresh(adb_path: String, port: int, armed: Array) -> void:
 	var list: Array = []
+	# serial -> reversed ports, for prepared devices only.
+	var reverses: Dictionary = {}
 	if not adb_path.is_empty():
-		list = Adb.new(adb_path).list_devices()
-	_on_devices.call_deferred(list, not adb_path.is_empty())
+		var adb: Adb = Adb.new(adb_path)
+		list = adb.list_devices()
+		if port > 0:
+			for serial: String in armed:
+				reverses[serial] = adb.reverse_list(serial)
+	_on_devices.call_deferred(list, not adb_path.is_empty(), reverses)
 
 
-func _on_devices(list: Array, found: bool) -> void:
+func _on_devices(list: Array, found: bool, reverses: Dictionary) -> void:
 	if _is_shutdown:
 		return
 	_refreshing = false
@@ -307,9 +313,10 @@ func _on_devices(list: Array, found: bool) -> void:
 	for device: Dictionary in list:
 		if str(device["state"]) == "device":
 			ready[str(device["serial"])] = true
-	# Unplugged or unauthorized devices are prepared again when they come back.
+	# Unplugged or unauthorized devices are prepared again when they come back,
+	# and so are devices whose reverse is gone (an adb server restart drops all).
 	for serial: String in _armed.keys():
-		if not ready.has(serial):
+		if not ready.has(serial) or (reverses.has(serial) and not (reverses[serial] as PackedInt32Array).has(_port)):
 			_armed.erase(serial)
 	for serial: String in _failed.keys():
 		if not ready.has(serial):

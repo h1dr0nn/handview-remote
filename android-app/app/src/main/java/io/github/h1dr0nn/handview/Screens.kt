@@ -45,12 +45,17 @@ private fun Page(content: @Composable ColumnScope.() -> Unit) {
 // ---- Home (Connect) ----
 
 @Composable
-fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit, connect: (SessionOffer) -> Unit, wifiNotReady: () -> Unit) {
+fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit, connect: (SessionOffer) -> Unit, wifiNotReady: () -> Unit, toggleTheme: () -> Unit) {
     var address by rememberSaveable { mutableStateOf("") }
     Page {
-        ScreenHeader(stringResource(R.string.home_title), stringResource(R.string.home_subtitle), back = null) {
+        Row(Modifier.fillMaxWidth().height(HeaderButtonSize), verticalAlignment = Alignment.CenterVertically) {
+            Wordmark(stringResource(R.string.app_name), Modifier.weight(1f))
+            IconButton(if (Palette.dark) Icons.Sun else Icons.Moon, stringResource(if (Palette.dark) R.string.light_mode else R.string.dark_mode), toggleTheme)
+            Spacer(Modifier.width(8.dp))
             IconButton(Icons.Settings, stringResource(R.string.settings_title)) { open(Screen.Settings) }
         }
+        Spacer(Modifier.height(14.dp))
+        Text(stringResource(R.string.home_subtitle), style = Type.Subtitle, color = Palette.Muted)
         notice?.let { Spacer(Modifier.height(20.dp)); Notice(stringResource(it)) }
         SectionLabel(stringResource(R.string.ip_port))
         Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -62,7 +67,7 @@ fun HomeScreen(offers: List<SessionOffer>, notice: Int?, open: (Screen) -> Unit,
                     cursorBrush = SolidColor(Palette.Accent), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 )
             }
-            PillButton(stringResource(R.string.connect), enabled = address.isNotEmpty(), modifier = Modifier.fillMaxHeight(), onClick = wifiNotReady)
+            AccentButton(stringResource(R.string.connect), enabled = address.isNotEmpty(), modifier = Modifier.fillMaxHeight(), onClick = wifiNotReady)
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

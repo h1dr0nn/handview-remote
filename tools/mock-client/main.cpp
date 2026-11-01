@@ -15,7 +15,7 @@ struct CredentialError : std::runtime_error {
 };
 int run_client(int argc,char** argv,std::uint64_t deadline) {
     testtool::Args args(argc,argv,"|--play||--stop-at-end||--decode|");
-    args.check("|--port||--token||--loopback-file||--wait||--duration||--play||--stop-at-end||--tap-every||--screen||--decode||--json||--cycles||--cycle-seconds|");
+    args.check("|--port||--token||--loopback-file||--wait||--duration||--play||--stop-at-end||--tap-every||--screen||--decode||--json||--cycles||--cycle-seconds||--view|");
     // --cycles N: Play for --cycle-seconds, Stop, repeat; every cycle must stream frames.
     const auto cycles=testtool::number(args.get("--cycles","0"),0,10000);
     const auto cycleSeconds=testtool::number(args.get("--cycle-seconds","4"),1,3600);
@@ -97,6 +97,11 @@ int run_client(int argc,char** argv,std::uint64_t deadline) {
             net::set_nodelay(video);
             net::FrameWriter vw(video);
             if(!vw.send(VideoAttach {w->sessionId}))throw std::runtime_error("VideoAttach failed");
+            // --view WxH: send ViewSize like the app's video area.
+            if(args.has("--view")) {
+                auto [viewW,viewH]=testtool::size(args.get("--view"));
+                send(ViewSize {static_cast<std::uint16_t>(viewW),static_cast<std::uint16_t>(viewH)});
+            }
             maybePlay();
         }
         else if(const auto* r=std::get_if<Reject>(&m)) {

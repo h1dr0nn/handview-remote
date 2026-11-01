@@ -2,7 +2,6 @@
 <resources>
     <string name="app_name">Handview</string>
     <string name="back">Back</string>
-    <string name="home_title">Connect</string>
     <string name="home_subtitle">Pick how this phone reaches the editor.</string>
     <string name="ip_port">IP and Port</string>
     <string name="ip_hint">192.168.1.10:38500</string>
@@ -21,6 +20,8 @@
     <string name="scan_soon">QR pairing comes with Wi-Fi sessions.</string>
     <string name="enter_ip">Enter IP Manually</string>
     <string name="settings_title">Settings</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="light_mode">Light Mode</string>
     <string name="video">Video</string>
     <string name="codec">Codec</string>
     <string name="h264">H.264</string>

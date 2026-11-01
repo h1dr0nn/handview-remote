@@ -22,6 +22,8 @@ data class AppSettings(
     val accelerometer: Boolean = false,
     val keyboard: Boolean = false,
     val autoReconnect: Boolean = true,
+    // null follows the system setting.
+    val dark: Boolean? = null,
 )
 
 class SettingsStore(context: Context) {
@@ -36,11 +38,13 @@ class SettingsStore(context: Context) {
         accelerometer = prefs.getBoolean("accelerometer", false),
         keyboard = prefs.getBoolean("keyboard", false),
         autoReconnect = prefs.getBoolean("autoReconnect", true),
+        dark = when (prefs.getInt("theme", 0)) { 1 -> false; 2 -> true; else -> null },
     )
 
     fun save(s: AppSettings) = prefs.edit()
         .putInt("resolution", s.resolution.ordinal).putInt("fps", s.fps).putInt("bitrate", s.bitrateKbps)
         .putBoolean("touch", s.touch).putBoolean("gyroscope", s.gyroscope).putBoolean("accelerometer", s.accelerometer)
         .putBoolean("keyboard", s.keyboard).putBoolean("autoReconnect", s.autoReconnect)
+        .putInt("theme", when (s.dark) { null -> 0; false -> 1; true -> 2 })
         .apply()
 }

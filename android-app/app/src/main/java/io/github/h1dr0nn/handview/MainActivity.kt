@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity(), Actions {
     private var resumed = false
     private var lastTried: String? = null
     private var viewWidth = 0
+    private var activeHolder: SurfaceHolder? = null
     private var viewHeight = 0
     @Volatile private var generation = 0
     private var touchSeq = 0L
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity(), Actions {
         main.post(refresh)
         store = SettingsStore(this)
         app.value = AppState(settings = store.load())
+        applyTheme()
         orient(Orientation.Portrait)
         lifecycleScope.launch {
             SessionOffers.flow(this@MainActivity).collect { offers ->
@@ -200,7 +202,13 @@ class MainActivity : ComponentActivity(), Actions {
     override fun command(cmd: Cmd) { client?.sendCommand(cmd) }
     override fun open(screen: Screen) { app.value = app.value.copy(screen = screen, notice = null); state.value = state.value.copy(message = null) }
     override fun wifiNotReady() { app.value = app.value.copy(screen = Screen.Home, notice = R.string.wifi_not_ready) }
-    override fun change(settings: AppSettings) { store.save(settings); app.value = app.value.copy(settings = settings) }
+    override fun change(settings: AppSettings) { store.save(settings); app.value = app.value.copy(settings = settings); applyTheme() }
+    override fun toggleTheme() { change(app.value.settings.copy(dark = !Palette.dark)) }
+    private fun applyTheme() {
+        val system = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        Palette.dark = app.value.settings.dark ?: system
+    }
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) { super.onConfigurationChanged(newConfig); applyTheme() }
     override val version: String get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
     override fun surface(): SurfaceView = surfaceView()
     // A session that ends lands on Home, which shows why it ended.
@@ -214,9 +222,11 @@ class MainActivity : ComponentActivity(), Actions {
     }
     private fun surfaceView(): SurfaceView = SurfaceView(this).apply {
         holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) { decoder?.setSurface(holder.surface) }
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) { decoder?.setSurface(holder.surface) }
-            override fun surfaceDestroyed(holder: SurfaceHolder) { decoder?.setSurface(null) }
+            override fun surfaceCreated(holder: SurfaceHolder) { activeHolder = holder; decoder?.setSurface(holder.surface) }
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) { activeHolder = holder; decoder?.setSurface(holder.surface) }
+            // A layout change (Full Screen) creates the new view before the old one
+            // goes away; only the view in use may take the surface from the decoder.
+            override fun surfaceDestroyed(holder: SurfaceHolder) { if (holder === activeHolder) { activeHolder = null; decoder?.setSurface(null) } }
         })
         setOnTouchListener { view, motion ->
             if (app.value.settings.touch && touchReady && renderedStream == stream && state.value.editor == EditorStateValue.Playing && motion.pointerCount in 1..10) {

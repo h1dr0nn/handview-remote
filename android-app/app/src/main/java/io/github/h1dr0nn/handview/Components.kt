@@ -18,6 +18,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,11 +34,29 @@ val CardShape = RoundedCornerShape(16.dp)
 fun Eyebrow(text: String, modifier: Modifier = Modifier, color: Color = Palette.Muted) =
     Text(text.uppercase(), modifier, style = Type.Eyebrow, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-// Round icon button used in top bars (Settings, Back).
+val HeaderButtonSize = 40.dp
+
+// The app name as a logo: its capitals span exactly the header button height,
+// with the baseline on the buttons' bottom edge.
+@Composable
+fun Wordmark(text: String, modifier: Modifier = Modifier) {
+    val density = LocalDensity.current
+    val size = with(density) { (HeaderButtonSize / Type.CAP_HEIGHT).toSp() }
+    Text(
+        text, maxLines = 1, softWrap = false, style = Type.Wordmark.copy(fontSize = size, lineHeight = size), color = Palette.Ink,
+        modifier = modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+            val height = HeaderButtonSize.roundToPx()
+            layout(placeable.width, height) { placeable.place(0, height - placeable[FirstBaseline]) }
+        },
+    )
+}
+
+// Round icon button used in top bars (Settings, Back, theme).
 @Composable
 fun IconButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(40.dp).clip(CircleShape).background(Palette.Card).clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        Modifier.size(HeaderButtonSize).clip(CircleShape).background(Palette.Card).clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, label, Modifier.size(20.dp), tint = Palette.Ink)
@@ -89,9 +111,9 @@ fun Tag(text: String, accent: Boolean = false) {
 }
 
 @Composable
-fun PillButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+fun AccentButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        modifier.alpha(if (enabled) 1f else 0.4f).clip(CircleShape).background(Palette.Accent)
+        modifier.alpha(if (enabled) 1f else 0.4f).clip(CardShape).background(Palette.Accent)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 20.dp),
         contentAlignment = Alignment.Center,
     ) {

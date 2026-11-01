@@ -24,8 +24,10 @@ object SessionOffers {
 
     @Synchronized fun put(context: Context, offer: SessionOffer) {
         load(context)
-        // One editor per port: a newer offer on the same port replaces the old one.
-        save(context, listOf(offer) + state.value.filter { it.port != offer.port })
+        // One editor per port, and one per project: a newer offer replaces an
+        // older one from the same port or the same project (an editor that moved
+        // to another port after a restart).
+        save(context, listOf(offer) + state.value.filter { it.port != offer.port && (offer.name.isEmpty() || it.name != offer.name) })
     }
 
     @Synchronized fun remove(context: Context, port: Int) {
@@ -41,7 +43,7 @@ object SessionOffers {
             val f = (value as? String)?.split('\n') ?: return@mapNotNull null
             if (f.size !in 4..5) return@mapNotNull null
             runCatching { SessionOffer(f[0].toInt(), f[1], f[2], f[3].toLong(), f.getOrNull(4)?.let(::File)?.takeIf { it.isFile }) }.getOrNull()
-        }.sortedByDescending { it.atMillis }
+        }.sortedByDescending { it.atMillis }.distinctBy { it.name.ifEmpty { "port ${it.port}" } }
     }
 
     private fun save(context: Context, offers: List<SessionOffer>) {

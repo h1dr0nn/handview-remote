@@ -38,6 +38,16 @@ object Icons {
         moveTo(19.5f, 15f); lineTo(19.5f, 19.5f); lineTo(15f, 19.5f)
         moveTo(9f, 19.5f); lineTo(4.5f, 19.5f); lineTo(4.5f, 15f)
     }
+    val Sun = stroked("Sun") {
+        moveTo(12f, 8f); arcToRelative(4f, 4f, 0f, true, true, 0f, 8f); arcToRelative(4f, 4f, 0f, true, true, 0f, -8f)
+        moveTo(12f, 2.5f); lineTo(12f, 4.5f); moveTo(12f, 19.5f); lineTo(12f, 21.5f)
+        moveTo(2.5f, 12f); lineTo(4.5f, 12f); moveTo(19.5f, 12f); lineTo(21.5f, 12f)
+        moveTo(5.3f, 5.3f); lineTo(6.7f, 6.7f); moveTo(17.3f, 17.3f); lineTo(18.7f, 18.7f)
+        moveTo(5.3f, 18.7f); lineTo(6.7f, 17.3f); moveTo(17.3f, 6.7f); lineTo(18.7f, 5.3f)
+    }
+    val Moon = stroked("Moon") {
+        moveTo(20f, 14.5f); arcTo(8.5f, 8.5f, 0f, false, true, 9.5f, 4f); arcTo(8.5f, 8.5f, 0f, true, false, 20f, 14.5f); close()
+    }
     val Back = stroked("Back", 2.2f) { moveTo(14.5f, 5.5f); lineTo(8f, 12f); lineTo(14.5f, 18.5f) }
     val Usb = stroked("Usb") {
         moveTo(12f, 3.5f); lineTo(12f, 17f)
