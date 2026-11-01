@@ -1,3 +1,6 @@
 [submodule "native/third_party/godot-cpp"]
 	path = native/third_party/godot-cpp
 	url = https://github.com/godotengine/godot-cpp
+[submodule "native/third_party/nv-codec-headers"]
+	path = native/third_party/nv-codec-headers
+	url = https://github.com/FFmpeg/nv-codec-headers
