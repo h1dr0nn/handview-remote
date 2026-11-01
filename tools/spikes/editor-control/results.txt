@@ -1,0 +1,124 @@
+=== run 2026-11-01T17:08:26 | experiments [1, 2] | 4.7.2-stable (official) | editor feature enabled ===
+clock: unix time resolution probe: smallest observed step(s) in ms [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+--- Experiment 1: environment inheritance ---
+1a: set PORT+TOKEN, play_main_scene(), unset in the same frame. editor now sees PORT='' has=false
+    game ready 1970 ms after play call
+    game env: HANDVIEW_SPIKE=1 (has=true)
+    game env: HANDVIEW_LINK_PORT=12345 (has=true)
+    game env: HANDVIEW_LINK_TOKEN=tok_ab12cd34 (has=true)
+    game env: HANDVIEW_SPIKE_ACTION= (has=false)
+    game env: HANDVIEW_SPIKE_LOG=D:/Projects/Projects/handview-remote/tools/spikes/editor-control/logs/game_1a.txt (has=true)
+    game cmdline: --scene res://main.tscn
+    game info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+1b: second play, nothing set, editor unset both (no stale value expected)
+    game ready 1969 ms after play call
+    game env: HANDVIEW_SPIKE=1 (has=true)
+    game env: HANDVIEW_LINK_PORT= (has=false)
+    game env: HANDVIEW_LINK_TOKEN= (has=false)
+    game env: HANDVIEW_SPIKE_ACTION= (has=false)
+    game env: HANDVIEW_SPIKE_LOG=D:/Projects/Projects/handview-remote/tools/spikes/editor-control/logs/game_1b.txt (has=true)
+    game cmdline: --scene res://main.tscn
+    game info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+1c: set, play, unset one editor frame later
+    game ready 2008 ms after play call
+    game env: HANDVIEW_SPIKE=1 (has=true)
+    game env: HANDVIEW_LINK_PORT=54321 (has=true)
+    game env: HANDVIEW_LINK_TOKEN=tok_late (has=true)
+    game env: HANDVIEW_SPIKE_ACTION= (has=false)
+    game env: HANDVIEW_SPIKE_LOG=D:/Projects/Projects/handview-remote/tools/spikes/editor-control/logs/game_1c.txt (has=true)
+    game cmdline: --scene res://main.tscn
+    game info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+1d: control, value left set in the editor during the second play
+    game env: HANDVIEW_SPIKE=1 (has=true)
+    game env: HANDVIEW_LINK_PORT=11111 (has=true)
+    game env: HANDVIEW_LINK_TOKEN= (has=false)
+    game env: HANDVIEW_SPIKE_ACTION= (has=false)
+    game env: HANDVIEW_SPIKE_LOG=D:/Projects/Projects/handview-remote/tools/spikes/editor-control/logs/game_1d.txt (has=true)
+    game cmdline: --scene res://main.tscn
+    game info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+--- Experiment 2: game lifecycle detection ---
+2a_editor_stop (editor stop): is_playing_scene true immediately after play call (first seen by polling _process: 128 ms), debugger session started 177 ms, game _ready 1891 ms
+    custom message game->editor 'handview_spike:hello' received 2050 ms after play call (EngineDebugger.send_message + EditorDebuggerPlugin._capture)
+    stop_playing_scene() called; is_playing_scene right after: false
+    event time = stop_playing_scene() call; is_playing_scene false seen after 104 ms; session_stopped signal after 3 ms
+    game log: exit_tree absent, close_request absent, last P frame t = event -21 ms
+    editor _process interval mean 11.6 ms, max 1393.0 ms over 371 frames
+    editor events: ["playing_true@+128ms", "session_started@+177ms", "cap_hello@+2050ms", "session_stopped@+4203ms", "playing_false@+4304ms"]
+2b_game_quit (game action=quit): is_playing_scene true immediately after play call (first seen by polling _process: 120 ms), debugger session started 143 ms, game _ready 1920 ms
+    custom message game->editor 'handview_spike:hello' received 1987 ms after play call (EngineDebugger.send_message + EditorDebuggerPlugin._capture)
+    event time = game logged action; is_playing_scene false seen after 158 ms; session_stopped signal after 42 ms
+    game log: exit_tree present, close_request absent, last P frame t = event -14 ms
+    editor _process interval mean 8.4 ms, max 327.0 ms over 484 frames
+    editor events: ["playing_true@+120ms", "session_started@+143ms", "cap_hello@+1987ms", "session_stopped@+3972ms", "session_stopped@+4087ms", "playing_false@+4088ms"]
+2c_game_kill (game action=kill): is_playing_scene true immediately after play call (first seen by polling _process: 149 ms), debugger session started 179 ms, game _ready 2375 ms
+    custom message game->editor 'handview_spike:hello' received 2450 ms after play call (EngineDebugger.send_message + EditorDebuggerPlugin._capture)
+    event time = game logged action; is_playing_scene false seen after 553 ms; session_stopped signal after 440 ms
+    game log: exit_tree absent, close_request absent, last P frame t = event -6 ms
+    editor _process interval mean 8.2 ms, max 298.0 ms over 599 frames
+    editor events: ["playing_true@+149ms", "session_started@+179ms", "cap_hello@+2450ms", "session_stopped@+4821ms", "session_stopped@+4933ms", "playing_false@+4934ms"]
+2d_game_crash (game action=crash): is_playing_scene true immediately after play call (first seen by polling _process: 113 ms), debugger session started 137 ms, game _ready 2043 ms
+    custom message game->editor 'handview_spike:hello' received 2112 ms after play call (EngineDebugger.send_message + EditorDebuggerPlugin._capture)
+    event time = game logged action; is_playing_scene false seen after 7385 ms; session_stopped signal after 7306 ms
+    game log: exit_tree absent, close_request absent, last P frame t = event -14 ms
+    editor _process interval mean 7.3 ms, max 362.0 ms over 1556 frames
+    editor events: ["playing_true@+113ms", "session_started@+137ms", "cap_hello@+2112ms", "session_stopped@+11352ms", "session_stopped@+11431ms", "playing_false@+11431ms"]
+total runtime 41.2 s
+
+=== run 2026-11-01T17:09:14 | experiments [3] | 4.7.2-stable (official) | editor feature enabled ===
+clock: unix time resolution probe: smallest observed step(s) in ms [1.0, 1.0, 1.0, 2.0, 1.0, 1.0]
+--- Experiment 3: game embedding ---
+editor setting run/window_placement/game_embed_mode: exists=true value=0 (enum: -1 Disabled, 0 Use Per-Project Configuration, 1 Embed Game, 2 Make Game Workspace Floating)
+project metadata game_view/embed_on_play (default true when absent): true
+display driver: Windows; Engine.is_embedded_in_editor in editor: false
+editor main window HWND = 0x4D0F64
+GameView node found in editor main screen: true
+Game workspace embed menu: item 'Embed Game on Next Play' id=6 checked=true
+3a: defaults: game started; game reports Engine.is_embedded_in_editor() = true
+    info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+    window: (powershell exit 0)
+    window: hwnd=0x720B9E class=Engine title='Handview Editor Control Spike (DEBUG)' toplevel=True ws_child=False parent=0x3E114C visible=True rect=879,414,1391,702
+3b: set_setting(game_embed_mode, -1) before play (restored at the end)
+3b: after editor setting = -1: game started; game reports Engine.is_embedded_in_editor() = true
+    info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+    window: (powershell exit 0)
+    window: hwnd=0x4517B4 class=Engine title='Handview Editor Control Spike (DEBUG)' toplevel=True ws_child=False parent=0x3F114C visible=True rect=879,414,1391,702
+3c: set_project_metadata(game_view, embed_on_play, false) before play
+3c: after project metadata embed_on_play = false: game started; game reports Engine.is_embedded_in_editor() = true
+    info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+    window: (powershell exit 0)
+    window: hwnd=0x3916D2 class=Engine title='Handview Editor Control Spike (DEBUG)' toplevel=True ws_child=False parent=0x40114C visible=True rect=879,414,1391,702
+3d: emitted id_pressed(6) on the 'Embed Game on Next Play' popup: checked true -> false
+3d: after toggling the menu item: game started; game reports Engine.is_embedded_in_editor() = false
+    info: debug_build=true embedded_in_editor=false display=Windows window_mode=0 version=4.7.2-stable (official)
+    window: (powershell exit 0)
+    window: hwnd=0x1770CB6 class=Engine title='Handview Editor Control Spike (DEBUG)' toplevel=True ws_child=False parent=0x0 visible=True rect=761,383,1287,709
+3d: toggled back, checked = true (original true)
+3e: after restoring the menu item: game started; game reports Engine.is_embedded_in_editor() = true
+    info: debug_build=true embedded_in_editor=true display=Windows window_mode=0 version=4.7.2-stable (official)
+    window: (powershell exit 0)
+    window: hwnd=0x7E10E8 class=Engine title='Handview Editor Control Spike (DEBUG)' toplevel=True ws_child=False parent=0x4817B4 visible=True rect=879,414,1391,702
+project metadata game_view/embed_on_play after restore: true
+total runtime 23.6 s
+
+=== run 2026-11-01T17:11:43 | experiments [4] | 4.7.2-stable (official) | editor feature enabled ===
+clock: unix time resolution probe: smallest observed step(s) in ms [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+--- Experiment 4: pause / step from the plugin ---
+debugger session active: true, is_debuggable: false
+running: 93.2 node frames/s (node 128->176, engine process 127->175, drawn 127->175)
+custom message round trip editor->game->editor (ping/pong via EditorDebuggerSession.send_message and _capture): 31 ms
+suspend: send_message("scene:suspend_changed", [true])
+    node frames 181 -> 181 over 1.00 s (delta 0), engine process frames 240 -> 360, frames drawn 240 -> 360, get_tree().paused in game = false
+    _process calls after the message: 1, last one 5 ms after send (so frames stop within that time)
+step 1: send_message("scene:next_frame", []): node frames 181 -> 182 (delta 1), _process calls logged 1, first after 20 ms, engine process frames delta 48, paused=false
+step 2: send_message("scene:next_frame", []): node frames 182 -> 183 (delta 1), _process calls logged 1, first after 19 ms, engine process frames delta 47, paused=false
+step 3: send_message("scene:next_frame", []): node frames 183 -> 184 (delta 1), _process calls logged 1, first after 22 ms, engine process frames delta 48, paused=false
+burst: two next_frame messages in the same editor frame: node frames delta 1
+5 steps sent 30 ms apart: node frames delta 5
+after steps still suspended: node frames delta over 0.5 s = 0
+resume: send_message("scene:suspend_changed", [false]): 89.1 node frames/s (node 205->263, engine process 844->902, drawn 844->902)
+    first _process after resume message: 18 ms
+node notifications seen in the game (relative to the suspend message): ["SUSPENDED (9003)@+20ms", "UNSUSPENDED (9004)@+1831ms", "SUSPENDED (9003)@+1841ms", "UNSUSPENDED (9004)@+2532ms", "SUSPENDED (9003)@+2548ms", "UNSUSPENDED (9004)@+3233ms", "SUSPENDED (9003)@+3249ms", "UNSUSPENDED (9004)@+3951ms", "SUSPENDED (9003)@+3960ms", "UNSUSPENDED (9004)@+4345ms", "SUSPENDED (9003)@+4358ms", "UNSUSPENDED (9004)@+4373ms", "SUSPENDED (9003)@+4393ms", "UNSUSPENDED (9004)@+4412ms", "SUSPENDED (9003)@+4424ms", "UNSUSPENDED (9004)@+4440ms", "SUSPENDED (9003)@+4461ms", "UNSUSPENDED (9004)@+4473ms", "SUSPENDED (9003)@+4491ms", "UNSUSPENDED (9004)@+5428ms"]
+get_tree().paused values seen in the game over the whole run: ["false"]
+is_playing_scene during all this: true
+total runtime 13.6 s
+

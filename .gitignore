@@ -33,3 +33,4 @@ Thumbs.db
 
 # Spike projects
 tools/spikes/*/.godot/
+tools/spikes/editor-control/logs/

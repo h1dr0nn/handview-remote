@@ -51,6 +51,18 @@ Godot's root viewport holds 8-bit sRGB-encoded RGB. Conversion to NV12 uses BT.7
 
 Spike 1 (`docs/spikes/01-gpu-interop.md`) measured sync readback of the root viewport at 2.3 to 2.6 ms per 1080p frame without vsync, while async readback adds a full frame and zero-copy sharing has no synchronization point in Godot's public API. The game runtime reads the frame back with `RenderingDevice.texture_get_data` (Forward+, Mobile) or `Viewport.get_texture().get_image()` (Compatibility), disables vsync and sets `Engine.max_fps` to the stream FPS in Handview-launched runs, and hands the bytes to an encoder thread that uploads them to its own D3D11 device. Status: final.
 
+## D13. Hidden Play Window: no embedding, off-screen tool window
+
+Spike 3 (`docs/spikes/03-editor-control.md`) found that Godot 4.4+ embeds the played game into the editor's Game workspace by default, which shows the game on the PC. The `game_embed_mode` setting and project metadata are read only once at editor start, so they cannot be changed per Play. For Handview plays the addon turns embedding off through the Game workspace's own "Embed Game on Next Play" menu item (found by its translated label, not by id) and restores the previous state after launch. The runtime then moves the window off-screen, sets no-focus, and adds `WS_EX_TOOLWINDOW` so it has no taskbar button. Spike 1 showed off-screen and no-focus windows keep rendering at full rate, while a minimized window stops drawing, so minimizing is never used. If the menu item cannot be found, the game runs embedded and the README documents that fallback. Status: final.
+
+## D14. Pause / Step stays off until the owner approves
+
+Spike 3 showed Pause and Step work from an addon through `EditorDebuggerSession.send_message("scene:suspend_changed", [bool])` and `("scene:next_frame", [])`. The feature is still `Proposed` in the design docs, and the brief says not to build its UI before approval, so the Godot host answers Pause / Step with `CommandResult{Ignored}` and the app keeps those buttons hidden. Enabling it later means wiring those two messages in the addon, pausing capture while suspended, and showing the buttons for host Godot. Status: waiting for the owner.
+
+## D15. Game lifecycle signals
+
+The loopback link is the primary signal that the game runs (LinkHello) or ended (link closed). `EditorDebuggerSession.stopped` and `EditorInterface.is_playing_scene()` back it up. A crashing game process stays alive about 7 s while showing its crash handler; the link drop or the debugger stop then reports `EditorState{Stopped}`. Status: final.
+
 ## D11. Versioning
 
 SemVer, tags `vX.Y.Z`. Foundation ends at `0.1.0`, Features at `0.2.0`, Polish (first production release) at `1.0.0`. CHANGELOG follows Keep a Changelog. Status: final.
