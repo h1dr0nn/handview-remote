@@ -131,6 +131,16 @@ void utilities() {
         }
         for (size_t i = 0; i < sps.size() - 1; ++i)
             CHECK(!parse_sps(std::span(sps).first(i)));
+        // Adding bitstream_restriction keeps the picture and survives a second pass.
+        auto rewritten = sps_without_reordering(sps);
+        CHECK(rewritten.has_value());
+        if (rewritten) {
+            auto again = parse_sps(*rewritten);
+            CHECK(again && again->width == 1280 && again->height == 720 && again->profile_idc == 77);
+            auto twice = sps_without_reordering(*rewritten);
+            CHECK(twice && *twice == *rewritten);
+            CHECK(rewritten->size() > sps.size());
+        }
     }
     CHECK(!parse_sps(std::vector<uint8_t>{0x68, 0, 0, 0}));
     CHECK(!parse_sps(std::vector<uint8_t>(100, 0)));

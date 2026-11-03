@@ -1,7 +1,8 @@
 // H.264 through VideoToolbox, the hardware encoder of every Apple Silicon Mac.
 // The game hands over RGBA in CPU memory (DECISIONS D12, D23); vImage scales
 // it and converts it to NV12 (BT.709 limited range, D10), and VideoToolbox
-// encodes one frame per call.
+// encodes one frame per call. The SPS gets VUI bitstream_restriction so
+// decoders output every frame without delay.
 #include "internal.hpp"
 #include <Accelerate/Accelerate.h>
 #include <CoreMedia/CoreMedia.h>
@@ -128,7 +129,19 @@ class VideoToolbox final : public Encoder {
                 return false;
             }
             output->insert(output->end(), {0, 0, 0, 1});
-            output->insert(output->end(), set, set + size);
+            // VideoToolbox leaves out VUI bitstream_restriction, so decoders
+            // such as Exynos hold several frames back for reordering that never
+            // happens; the host then waits for acks that do not come.
+            if (size && (set[0] & 31) == 7) {
+                auto sps = sps_without_reordering({set, size});
+                if (!sps) {
+                    callback_error = "VideoToolbox SPS could not be rewritten";
+                    return false;
+                }
+                output->insert(output->end(), sps->begin(), sps->end());
+            } else {
+                output->insert(output->end(), set, set + size);
+            }
         }
         return true;
     }
