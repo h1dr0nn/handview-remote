@@ -20,7 +20,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - No Start / Stop Session: the editor listens while it runs, prepares every plugged in phone and offers itself to the app, which joins on its own (DECISIONS D18). The X button only leaves the cast screen; a game started from the phone stops with it.
 - The app opens on Home in portrait and joins when you tap a project; it rejoins on its own only after a dropped connection. Cast follows the stream orientation.
-- Icons use Material Symbols Rounded, and the launcher icon is new (DECISIONS D21). The app's versionCode is 3, so the addon installs the new app over older ones. Cast chrome is one status row and one control row so a 9:16 game fills the width.
+- Icons use Material Symbols Rounded (DECISIONS D21). The launcher icon is a cream phone with a touch ring on a terracotta gradient, as bitmap adaptive layers with a themed (monochrome) layer; the 1024 px source layers are in `android-app/icon/`. The app's versionCode is 3, so the addon installs the new app over older ones. Cast chrome is one status row and one control row so a 9:16 game fills the width.
 
 ### Fixed
 
