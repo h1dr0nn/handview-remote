@@ -3,10 +3,13 @@
 #include "handview/encode/encoder.hpp"
 #include "handview/session/session.hpp"
 
+#ifdef _WIN32
 #include <windows.h>
 #include <objbase.h>
+#endif
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <map>
@@ -20,6 +23,11 @@ namespace handview::stream {
 using namespace protocol;
 
 std::uint64_t now_us() {
+#ifndef _WIN32
+    // Monotonic and system wide, like QueryPerformanceCounter.
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+#else
     static const std::uint64_t frequency = [] {
         LARGE_INTEGER value;
         QueryPerformanceFrequency(&value);
@@ -30,6 +38,7 @@ std::uint64_t now_us() {
     const auto ticks = static_cast<std::uint64_t>(counter.QuadPart);
     // Split to avoid overflowing ticks * 1e6.
     return (ticks / frequency) * 1000000u + (ticks % frequency) * 1000000u / frequency;
+#endif
 }
 
 namespace {
@@ -53,6 +62,7 @@ const char* encoder_label(encode::Backend backend) {
         case encode::Backend::Nvenc: return "NVENC";
         case encode::Backend::MfHardware: return "MF Hardware";
         case encode::Backend::MfSoftware: return "MF Software";
+        case encode::Backend::VideoToolbox: return "VideoToolbox";
     }
     return "";
 }
@@ -286,7 +296,9 @@ struct StreamController::Impl {
     }
 
     void run() {
+#ifdef _WIN32
         const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+#endif
         while (running.load()) {
             while (auto message = link.poll()) handle(*message);
             if (!link.connected()) {
@@ -309,7 +321,9 @@ struct StreamController::Impl {
             }
         }
         encoder.reset();
+#ifdef _WIN32
         if (SUCCEEDED(com)) CoUninitialize();
+#endif
     }
 };
 

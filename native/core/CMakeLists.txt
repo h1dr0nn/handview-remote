@@ -3,6 +3,14 @@
 # work can add files without touching this list.
 
 file(GLOB_RECURSE HANDVIEW_CORE_SOURCES CONFIGURE_DEPENDS src/*.cpp)
+# Encoder backends are per platform: D3D11, NVENC and Media Foundation on
+# Windows, VideoToolbox on macOS.
+if(NOT WIN32)
+    list(FILTER HANDVIEW_CORE_SOURCES EXCLUDE REGEX "/encode/(gpu|mf|nvenc)\\.cpp$")
+endif()
+if(NOT APPLE)
+    list(FILTER HANDVIEW_CORE_SOURCES EXCLUDE REGEX "/encode/videotoolbox\\.cpp$")
+endif()
 
 add_library(handview_core STATIC ${HANDVIEW_CORE_SOURCES})
 add_library(handview::core ALIAS handview_core)
@@ -15,6 +23,10 @@ if(WIN32)
     target_compile_definitions(handview_core PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(handview_core PUBLIC ws2_32 d3d11 dxgi mfplat mfuuid mf strmiids ole32 oleaut32)
     target_include_directories(handview_core SYSTEM PRIVATE ../third_party/nv-codec-headers/include)
+elseif(APPLE)
+    target_link_libraries(handview_core PUBLIC
+        "-framework VideoToolbox" "-framework CoreMedia" "-framework CoreVideo"
+        "-framework CoreFoundation" "-framework Accelerate")
 endif()
 
 if(MSVC)

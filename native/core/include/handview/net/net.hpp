@@ -1,6 +1,8 @@
 #pragma once
 #include "handview/protocol/messages.hpp"
+#ifdef _WIN32
 #include <winsock2.h>
+#endif
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -12,8 +14,16 @@
 #include <utility>
 
 namespace handview::net {
+#ifdef _WIN32
+using NativeSocket = SOCKET;
+inline constexpr NativeSocket kInvalidSocket = INVALID_SOCKET;
+#else
+using NativeSocket = int;
+inline constexpr NativeSocket kInvalidSocket = -1;
+#endif
 using LogSink = std::function<void(std::string_view)>;
 using Milliseconds = std::chrono::milliseconds;
+// Winsock startup on Windows, a no-op elsewhere.
 class WinsockInit {
 public:
     WinsockInit();
@@ -26,18 +36,18 @@ private:
 };
 class Socket {
 public:
-    explicit Socket(SOCKET value = INVALID_SOCKET) : value_(value) {}
+    explicit Socket(NativeSocket value = kInvalidSocket) : value_(value) {}
     ~Socket() { close(); }
-    Socket(Socket&& other) noexcept : value_(other.value_.exchange(INVALID_SOCKET)) {}
+    Socket(Socket&& other) noexcept : value_(other.value_.exchange(kInvalidSocket)) {}
     Socket& operator=(Socket&& other) noexcept;
     Socket(const Socket&) = delete;
     Socket& operator=(const Socket&) = delete;
-    SOCKET native_handle() const { return value_.load(); }
-    explicit operator bool() const { return native_handle() != INVALID_SOCKET; }
+    NativeSocket native_handle() const { return value_.load(); }
+    explicit operator bool() const { return native_handle() != kInvalidSocket; }
     void close();
     std::uint16_t port() const;
 private:
-    std::atomic<SOCKET> value_;
+    std::atomic<NativeSocket> value_;
 };
 Socket listen_loopback(std::uint16_t port);
 // Every IPv4 interface, for Wi-Fi sessions. Same exclusive bind as loopback.

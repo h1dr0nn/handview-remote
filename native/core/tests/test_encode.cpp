@@ -4,18 +4,25 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cmath>
 #include <vector>
+#ifdef _WIN32
 #include <windows.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mftransform.h>
 #include <mferror.h>
 #include <wrl/client.h>
+#elif defined(__APPLE__)
+#include <CoreMedia/CoreMedia.h>
+#include <CoreVideo/CoreVideo.h>
+#include <VideoToolbox/VideoToolbox.h>
+#endif
 using namespace handview::encode;
-using Microsoft::WRL::ComPtr;
 static_assert(static_cast<uint8_t>(Backend::Nvenc) == 0);
 static_assert(static_cast<uint8_t>(Backend::MfHardware) == 1);
 static_assert(static_cast<uint8_t>(Backend::MfSoftware) == 2);
+static_assert(static_cast<uint8_t>(Backend::VideoToolbox) == 3);
 namespace {
 struct BitWriter {
     std::vector<uint8_t> data;
@@ -133,6 +140,8 @@ void utilities() {
     CHECK(!error.empty());
 }
 // Decode every access unit to catch broken references after rate changes.
+#ifdef _WIN32
+using Microsoft::WRL::ComPtr;
 class Decoder {
     ComPtr<IMFTransform> transform;
     bool com = false, mf = false;
@@ -261,6 +270,167 @@ class Decoder {
         return pull();
     }
 };
+#elif defined(__APPLE__)
+class Decoder {
+    CMVideoFormatDescriptionRef format = nullptr;
+    VTDecompressionSessionRef session = nullptr;
+    std::vector<uint8_t> sps, pps;
+    static void on_output(void *self, void *, OSStatus status, VTDecodeInfoFlags,
+                          CVImageBufferRef image, CMTime, CMTime) {
+        static_cast<Decoder *>(self)->collect(status, image);
+    }
+    void collect(OSStatus status, CVImageBufferRef image) {
+        if (status != noErr || !image) {
+            std::printf("Decoder output OSStatus %d, frames %u\n", static_cast<int>(status), frames);
+            failed = true;
+            return;
+        }
+        width = static_cast<unsigned>(CVPixelBufferGetWidth(image));
+        height = static_cast<unsigned>(CVPixelBufferGetHeight(image));
+        CHECK(width == expected_w && height == expected_h);
+        CVPixelBufferLockBaseAddress(image, kCVPixelBufferLock_ReadOnly);
+        auto y = static_cast<const uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(image, 0));
+        auto uv = static_cast<const uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(image, 1));
+        center_y = y[CVPixelBufferGetBytesPerRowOfPlane(image, 0) * (height / 2) + width / 2];
+        auto c = uv + CVPixelBufferGetBytesPerRowOfPlane(image, 1) * (height / 4) + (width / 4) * 2;
+        center_cb = c[0];
+        center_cr = c[1];
+        CVPixelBufferUnlockBaseAddress(image, kCVPixelBufferLock_ReadOnly);
+        ++frames;
+    }
+    bool open() {
+        if (session) {
+            VTDecompressionSessionInvalidate(session);
+            CFRelease(session);
+            session = nullptr;
+        }
+        if (format)
+            CFRelease(format);
+        format = nullptr;
+        const uint8_t *sets[] = {sps.data(), pps.data()};
+        const size_t sizes[] = {sps.size(), pps.size()};
+        if (CMVideoFormatDescriptionCreateFromH264ParameterSets(kCFAllocatorDefault, 2, sets, sizes,
+                                                                4, &format) != noErr)
+            return false;
+        int32_t pixel = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+        CFNumberRef number = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixel);
+        const void *keys[] = {kCVPixelBufferPixelFormatTypeKey};
+        const void *values[] = {number};
+        CFDictionaryRef attributes =
+            CFDictionaryCreate(kCFAllocatorDefault, keys, values, 1, &kCFTypeDictionaryKeyCallBacks,
+                               &kCFTypeDictionaryValueCallBacks);
+        CFRelease(number);
+        VTDecompressionOutputCallbackRecord callback{&Decoder::on_output, this};
+        const auto status = VTDecompressionSessionCreate(kCFAllocatorDefault, format, nullptr,
+                                                         attributes, &callback, &session);
+        CFRelease(attributes);
+        return status == noErr;
+    }
+
+  public:
+    unsigned frames = 0, width = 0, height = 0, expected_w = 1280, expected_h = 720;
+    uint8_t center_y = 0, center_cb = 0, center_cr = 0;
+    bool failed = false;
+    ~Decoder() {
+        if (session) {
+            VTDecompressionSessionInvalidate(session);
+            CFRelease(session);
+        }
+        if (format)
+            CFRelease(format);
+    }
+    bool init() {
+        return true;
+    }
+    bool feed(const EncodedFrame &frame, uint64_t pts) {
+        std::vector<uint8_t> avcc;
+        bool changed = false;
+        for (auto nal : split_annex_b(frame.data)) {
+            const auto type = nal_type(nal);
+            if (type == 7 || type == 8) {
+                auto &target = type == 7 ? sps : pps;
+                changed |= !std::equal(nal.begin(), nal.end(), target.begin(), target.end());
+                target.assign(nal.begin(), nal.end());
+                continue;
+            }
+            const auto n = static_cast<uint32_t>(nal.size());
+            avcc.insert(avcc.end(), {uint8_t(n >> 24), uint8_t(n >> 16), uint8_t(n >> 8), uint8_t(n)});
+            avcc.insert(avcc.end(), nal.begin(), nal.end());
+        }
+        if ((changed || !session) && (sps.empty() || pps.empty() || !open()))
+            return false;
+        CMBlockBufferRef block = nullptr;
+        if (CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, avcc.data(), avcc.size(),
+                                               kCFAllocatorNull, nullptr, 0, avcc.size(), 0,
+                                               &block) != noErr)
+            return false;
+        CMSampleBufferRef sample = nullptr;
+        const size_t size = avcc.size();
+        CMSampleTimingInfo timing{CMTimeMake(1, 60), CMTimeMake(int64_t(pts), 1000000),
+                                  kCMTimeInvalid};
+        auto status = CMSampleBufferCreateReady(kCFAllocatorDefault, block, format, 1, 1, &timing,
+                                                1, &size, &sample);
+        CFRelease(block);
+        if (status != noErr)
+            return false;
+        status = VTDecompressionSessionDecodeFrame(session, sample, 0, nullptr, nullptr);
+        if (status == noErr)
+            status = VTDecompressionSessionWaitForAsynchronousFrames(session);
+        CFRelease(sample);
+        return status == noErr && !failed;
+    }
+    bool finish() {
+        return !session || VTDecompressionSessionWaitForAsynchronousFrames(session) == noErr;
+    }
+};
+// Solid colors through encode and decode land on BT.709 limited range values,
+// which catches swapped channels and full range output.
+void color(Backend backend, const char *name) {
+    struct Rgb {
+        uint8_t r, g, b;
+    };
+    for (auto c : {Rgb{255, 0, 0}, Rgb{0, 255, 0}, Rgb{0, 0, 255}, Rgb{255, 255, 255},
+                   Rgb{0, 0, 0}, Rgb{200, 120, 40}}) {
+        EncoderConfig config{640, 360, 640, 360, 30, 4000};
+        std::string error;
+        auto encoder = create_encoder(config, backend, error);
+        if (!encoder) {
+            std::printf("SKIP %s color: %s\n", name, error.c_str());
+            return;
+        }
+        std::vector<uint8_t> rgba(size_t(640) * 360 * 4);
+        for (size_t i = 0; i < rgba.size(); i += 4) {
+            rgba[i] = c.r;
+            rgba[i + 1] = c.g;
+            rgba[i + 2] = c.b;
+            rgba[i + 3] = 255;
+        }
+        Decoder decoder;
+        decoder.expected_w = 640;
+        decoder.expected_h = 360;
+        for (unsigned frame = 0; frame < 3; ++frame) {
+            EncodedFrame out;
+            CHECK(encoder->encode(rgba.data(), 640 * 4, frame * 33333, frame == 0, out, error));
+            CHECK(decoder.feed(out, frame * 33333));
+        }
+        CHECK(decoder.finish());
+        CHECK(decoder.frames == 3);
+        const double r = c.r / 255.0, g = c.g / 255.0, b = c.b / 255.0;
+        const double y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const double ey = 16 + 219 * y, ecb = 128 + 224 * (b - y) / 1.8556,
+                     ecr = 128 + 224 * (r - y) / 1.5748;
+        const bool near = std::abs(decoder.center_y - ey) <= 3 &&
+                          std::abs(decoder.center_cb - ecb) <= 3 &&
+                          std::abs(decoder.center_cr - ecr) <= 3;
+        if (!near)
+            std::printf("%s color %u,%u,%u: got Y %u Cb %u Cr %u, expected %.0f %.0f %.0f\n", name,
+                        c.r, c.g, c.b, decoder.center_y, decoder.center_cb, decoder.center_cr, ey,
+                        ecb, ecr);
+        CHECK(near);
+    }
+    std::printf("%s: BT.709 limited range colors match\n", name);
+}
+#endif
 void integration(Backend backend, const char *name, uint8_t profile = 77) {
     EncoderConfig config{1920, 1080, 1280, 720, 60, 8000, profile};
     std::string error;
@@ -353,11 +523,17 @@ void integration(Backend backend, const char *name, uint8_t profile = 77) {
 } // namespace
 int main() {
     utilities();
+#ifdef _WIN32
     integration(Backend::Nvenc, "nvenc");
     integration(Backend::MfHardware, "mf_hw");
     integration(Backend::MfSoftware, "mf_sw");
     integration(Backend::Nvenc, "nvenc", 66);
     integration(Backend::MfHardware, "mf_hw", 66);
     integration(Backend::MfSoftware, "mf_sw", 66);
+#elif defined(__APPLE__)
+    integration(Backend::VideoToolbox, "videotoolbox");
+    integration(Backend::VideoToolbox, "videotoolbox", 66);
+    color(Backend::VideoToolbox, "videotoolbox");
+#endif
     return test_result("encode");
 }

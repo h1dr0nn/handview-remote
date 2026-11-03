@@ -1,8 +1,48 @@
 #include "internal.hpp"
+#include <cstdlib>
 #include <exception>
+#include <initializer_list>
 namespace handview::encode {
 namespace {
+// Backends this platform has, in order of preference.
+#ifdef _WIN32
+constexpr std::initializer_list<Backend> kBackends = {Backend::Nvenc, Backend::MfHardware,
+                                                      Backend::MfSoftware};
+constexpr const char *kBackendNames = "nvenc, mf_hw or mf_sw";
+#elif defined(__APPLE__)
+constexpr std::initializer_list<Backend> kBackends = {Backend::VideoToolbox};
+constexpr const char *kBackendNames = "videotoolbox";
+#else
+constexpr std::initializer_list<Backend> kBackends = {};
+constexpr const char *kBackendNames = "no encoder on this platform";
+#endif
+std::unique_ptr<Encoder> make(Backend b, const EncoderConfig &c, std::string &reason) {
+#ifdef _WIN32
+    return b == Backend::Nvenc ? detail::make_nvenc(c, reason)
+                               : detail::make_mf(c, b == Backend::MfHardware, reason);
+#elif defined(__APPLE__)
+    (void)b;
+    return detail::make_videotoolbox(c, reason);
+#else
+    (void)b;
+    (void)c;
+    reason = "No H.264 encoder on this platform";
+    return {};
+#endif
+}
+bool probe(Backend b) {
+#ifdef _WIN32
+    return b == Backend::Nvenc ? detail::probe_nvenc() : detail::probe_mf(b == Backend::MfHardware);
+#elif defined(__APPLE__)
+    (void)b;
+    return detail::probe_videotoolbox();
+#else
+    (void)b;
+    return false;
+#endif
+}
 std::optional<Backend> environment(bool &invalid) {
+#ifdef _WIN32
     char value[32]{};
     auto n = GetEnvironmentVariableA("HANDVIEW_ENCODER", value, sizeof(value));
     invalid = false;
@@ -12,12 +52,20 @@ std::optional<Backend> environment(bool &invalid) {
         invalid = true;
         return {};
     }
+#else
+    const char *value = std::getenv("HANDVIEW_ENCODER");
+    invalid = false;
+    if (!value || !*value)
+        return {};
+#endif
     if (std::string(value) == "nvenc")
         return Backend::Nvenc;
     if (std::string(value) == "mf_hw")
         return Backend::MfHardware;
     if (std::string(value) == "mf_sw")
         return Backend::MfSoftware;
+    if (std::string(value) == "videotoolbox")
+        return Backend::VideoToolbox;
     invalid = true;
     return {};
 }
@@ -85,16 +133,15 @@ std::unique_ptr<Encoder> create_encoder(const EncoderConfig &c, std::optional<Ba
         bool invalid = false;
         forced = environment(invalid);
         if (invalid) {
-            error = "Invalid HANDVIEW_ENCODER (expected nvenc, mf_hw or mf_sw)";
+            error = std::string("Invalid HANDVIEW_ENCODER (expected ") + kBackendNames + ")";
             return {};
         }
     }
-    for (auto b : {Backend::Nvenc, Backend::MfHardware, Backend::MfSoftware}) {
+    for (auto b : kBackends) {
         if (forced && *forced != b)
             continue;
         std::string reason;
-        auto result = b == Backend::Nvenc ? detail::make_nvenc(c, reason)
-                                          : detail::make_mf(c, b == Backend::MfHardware, reason);
+        auto result = make(b, c, reason);
         if (result) {
             error.clear();
             return std::make_unique<GuardedEncoder>(std::move(result));
@@ -118,11 +165,10 @@ std::optional<Backend> probe_backend() try {
     auto forced = environment(invalid);
     if (invalid)
         return {};
-    for (auto b : {Backend::Nvenc, Backend::MfHardware, Backend::MfSoftware}) {
+    for (auto b : kBackends) {
         if (forced && *forced != b)
             continue;
-        if (b == Backend::Nvenc ? detail::probe_nvenc()
-                                : detail::probe_mf(b == Backend::MfHardware))
+        if (probe(b))
             return b;
     }
     return {};

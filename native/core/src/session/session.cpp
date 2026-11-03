@@ -1,9 +1,14 @@
 #include <optional>
 #include "handview/session/session.hpp"
+#ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
-#include <algorithm>
 #pragma comment(lib, "bcrypt.lib")
+#else
+#include <stdlib.h>
+#include <unistd.h>
+#endif
+#include <algorithm>
 
 namespace handview::session {
 using namespace protocol;
@@ -14,6 +19,21 @@ struct Peer {
     net::Socket socket;
     net::FrameWriter writer;
 };
+bool random_bytes(std::uint8_t* out, std::size_t size) {
+#ifdef _WIN32
+    return BCryptGenRandom(nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG) >= 0;
+#else
+    arc4random_buf(out, size);
+    return true;
+#endif
+}
+std::uint32_t process_id() {
+#ifdef _WIN32
+    return GetCurrentProcessId();
+#else
+    return static_cast<std::uint32_t>(getpid());
+#endif
+}
 template<class F> bool read_peer(Peer& peer, Channel channel, net::LogSink log, F callback,
                                std::function<void()> activity = {}) {
     net::FrameReader reader(channel, std::move(log));
@@ -48,7 +68,7 @@ bool GameLink::connect(std::uint16_t port, const std::array<std::uint8_t,32>& to
     auto socket = net::connect_loopback(port);
     if (!socket) return false;
     auto peer = std::make_shared<Peer>(std::move(socket));
-    if (!peer->writer.send(LinkHello{token, GetCurrentProcessId()})) return false;
+    if (!peer->writer.send(LinkHello{token, process_id()})) return false;
     { std::lock_guard lock(impl_->peer_mutex); impl_->peer = peer; }
     while (impl_->incoming.pop()) {}
     impl_->live = true;
@@ -170,7 +190,7 @@ struct EditorServer::Impl {
                 if(h->protoVersion!=kProtocolVersion) { p->writer.send(Reject{RejectReason::BadVersion}); return false; }
                 own=std::make_shared<Session>(); own->control=p; own->hello=*h;
                 { std::lock_guard lock(mutex); own->welcome=config.host; }
-                if(BCryptGenRandom(nullptr,own->welcome.sessionId.data(),16,BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0) return false;
+                if(!random_bytes(own->welcome.sessionId.data(),16)) return false;
                 std::shared_ptr<Session> old;
                 {
                     std::lock_guard lock(mutex);

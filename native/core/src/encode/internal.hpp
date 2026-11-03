@@ -1,14 +1,15 @@
 #pragma once
 #include "handview/encode/encoder.hpp"
 #include "handview/encode/h264.hpp"
+#ifdef _WIN32
 #include <windows.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
 #include <wrl/client.h>
+#endif
 #include <cstdio>
 #include <utility>
 namespace handview::encode::detail {
-using Microsoft::WRL::ComPtr;
 template <class F> struct ScopeExit {
     F function;
     bool active = true;
@@ -20,6 +21,8 @@ template <class F> struct ScopeExit {
     ScopeExit(const ScopeExit &) = delete;
     ScopeExit &operator=(const ScopeExit &) = delete;
 };
+#ifdef _WIN32
+using Microsoft::WRL::ComPtr;
 inline bool hr(HRESULT value, const char *what, std::string &error) {
     if (SUCCEEDED(value))
         return true;
@@ -43,6 +46,7 @@ struct Gpu {
     bool init(const EncoderConfig &, bool nvidia, const LUID *luid, std::string &);
     bool convert(const uint8_t *, uint32_t, std::string &);
 };
+#endif
 inline void classify(EncodedFrame &out) {
     bool sps = false, pps = false;
     out.keyframe = false;
@@ -53,8 +57,13 @@ inline void classify(EncodedFrame &out) {
     }
     out.has_codec_config = sps && pps;
 }
+#ifdef _WIN32
 std::unique_ptr<Encoder> make_nvenc(const EncoderConfig &, std::string &);
 std::unique_ptr<Encoder> make_mf(const EncoderConfig &, bool, std::string &);
 bool probe_nvenc();
 bool probe_mf(bool);
+#elif defined(__APPLE__)
+std::unique_ptr<Encoder> make_videotoolbox(const EncoderConfig &, std::string &);
+bool probe_videotoolbox();
+#endif
 } // namespace handview::encode::detail
