@@ -101,6 +101,7 @@ func test_announced_encoder_fallback() -> void:
 
 func test_encoder_line() -> void:
 	_eq(Logic.encoder_line(0), "Encoder: NVENC", "nvenc")
+	_eq(Logic.encoder_line(3), "Encoder: VideoToolbox", "videotoolbox")
 	_eq(Logic.encoder_line(-1), "No H.264 encoder found", "none")
 
 

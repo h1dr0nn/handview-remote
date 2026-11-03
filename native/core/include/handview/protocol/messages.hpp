@@ -13,8 +13,8 @@ enum class Codec : std::uint8_t { H264 = 1 };
 constexpr bool valid(Codec value) { return value == Codec::H264; }
 enum class Profile : std::uint8_t { Baseline = 66, Main = 77, High = 100 };
 constexpr bool valid(Profile value) { return value == Profile::Baseline || value == Profile::Main || value == Profile::High; }
-enum class Encoder : std::uint8_t { Nvenc = 0, MfHardware = 1, MfSoftware = 2 };
-constexpr bool valid(Encoder value) { return value == Encoder::Nvenc || value == Encoder::MfHardware || value == Encoder::MfSoftware; }
+enum class Encoder : std::uint8_t { Nvenc = 0, MfHardware = 1, MfSoftware = 2, VideoToolbox = 3 };
+constexpr bool valid(Encoder value) { return value == Encoder::Nvenc || value == Encoder::MfHardware || value == Encoder::MfSoftware || value == Encoder::VideoToolbox; }
 enum class Orientation : std::uint8_t { Portrait = 0, Landscape = 1 };
 constexpr bool valid(Orientation value) { return value == Orientation::Portrait || value == Orientation::Landscape; }
 enum class EditorStateValue : std::uint8_t { Stopped = 0, Playing = 1, Paused = 2, Compiling = 3, Reloading = 4 };

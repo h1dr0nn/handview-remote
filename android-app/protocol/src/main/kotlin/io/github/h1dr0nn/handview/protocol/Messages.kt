@@ -15,7 +15,7 @@ sealed interface Message
 enum class Host(val wire: Int) { Unity(0), Godot(1) }
 enum class Codec(val wire: Int) { H264(1) }
 enum class Profile(val wire: Int) { Baseline(66), Main(77), High(100) }
-enum class Encoder(val wire: Int) { Nvenc(0), MfHardware(1), MfSoftware(2) }
+enum class Encoder(val wire: Int) { Nvenc(0), MfHardware(1), MfSoftware(2), VideoToolbox(3) }
 enum class Orientation(val wire: Int) { Portrait(0), Landscape(1) }
 enum class EditorStateValue(val wire: Int) { Stopped(0), Playing(1), Paused(2), Compiling(3), Reloading(4) }
 enum class Cmd(val wire: Int) { Play(1), Pause(2), Step(3), Stop(4), Restart(5) }

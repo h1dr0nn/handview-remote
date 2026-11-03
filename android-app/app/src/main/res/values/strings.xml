@@ -66,6 +66,7 @@
     <string name="nvenc">NVENC</string>
     <string name="mf_hardware">MF Hardware</string>
     <string name="mf_software">MF Software</string>
+    <string name="videotoolbox">VideoToolbox</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>

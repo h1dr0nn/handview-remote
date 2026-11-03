@@ -77,7 +77,7 @@ Field notes:
 | `codec` | 1 H264 (2 HEVC reserved, not valid in v1) |
 | `profile` | H.264 `profile_idc`: 66 Baseline, 77 Main, 100 High |
 | `level` | H.264 `level_idc`, e.g. 31 = 3.1, 41 = 4.1, 51 = 5.1. Any value 9..62 is accepted |
-| `encoder` | 0 NVENC, 1 MF hardware, 2 MF software |
+| `encoder` | 0 NVENC, 1 MF hardware, 2 MF software, 3 VideoToolbox (macOS) |
 | `orientation` | 0 Portrait, 1 Landscape |
 | `editorState` | 0 Stopped, 1 Playing, 2 Paused, 3 Compiling, 4 Reloading |
 | `cmd` | 1 Play, 2 Pause, 3 Step, 4 Stop, 5 Restart |

@@ -6,7 +6,8 @@
 #include <vector>
 
 namespace handview::encode {
-enum class Backend : uint8_t { Nvenc = 0, MfHardware = 1, MfSoftware = 2 };
+// Values match the protocol's Welcome.encoder.
+enum class Backend : uint8_t { Nvenc = 0, MfHardware = 1, MfSoftware = 2, VideoToolbox = 3 };
 struct EncoderConfig {
     uint32_t in_w, in_h;
     uint16_t out_w, out_h;

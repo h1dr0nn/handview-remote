@@ -111,6 +111,8 @@ static func encoder_line(probed: int) -> String:
 			return "Encoder: Media Foundation (hardware)"
 		2:
 			return "Encoder: Media Foundation (software)"
+		3:
+			return "Encoder: VideoToolbox"
 	return "No H.264 encoder found"
 
 

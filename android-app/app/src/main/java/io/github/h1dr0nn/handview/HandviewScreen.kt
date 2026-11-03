@@ -152,6 +152,7 @@ private fun encoderName(ui: CastState) = stringResource(
     when (ui.welcome?.encoder) {
         Encoder.Nvenc -> R.string.nvenc
         Encoder.MfSoftware -> R.string.mf_software
+        Encoder.VideoToolbox -> R.string.videotoolbox
         else -> R.string.mf_hardware
     },
 )
