@@ -23,7 +23,18 @@ ctest --preset windows-x64-debug
 
 The GDExtension DLL is written to `godot-addon/addons/handview/bin/`. For a release build use `-DGODOTCPP_TARGET=template_release` and `--preset windows-x64-release`.
 
-To build and test only the core, on any platform and without godot-cpp:
+On an Apple Silicon Mac, with the Xcode Command Line Tools, CMake and Ninja (`brew install cmake ninja`) and Python 3:
+
+```bash
+cd native
+cmake --preset macos-arm64 -DGODOTCPP_TARGET=template_debug
+cmake --build --preset macos-arm64-debug --parallel
+ctest --preset macos-arm64-debug
+```
+
+This writes `handview.macos.template_debug.arm64.dylib` to the same folder. For a release build configure with `-DGODOTCPP_TARGET=template_release` and build `--preset macos-arm64-release`. The mock client and mock host are Windows only and are not built on macOS.
+
+To build and test only the core, on Windows or macOS and without godot-cpp:
 
 ```bash
 cd native
@@ -81,7 +92,7 @@ The other tools and their options are in [tools/README.md](../tools/README.md). 
 | `native/core/` | C++ core: protocol, network, session server, flow control, encoders. No engine dependency |
 | `native/godot-extension/` | GDExtension wrapping the core for Godot |
 | `native/unity-plugin/` | Reserved for the Unity phase |
-| `native/third_party/` | Submodules: godot-cpp, nv-codec-headers |
+| `native/third_party/` | Submodules: godot-cpp, nv-codec-headers (Windows only) |
 | `godot-addon/addons/handview/` | The addon: editor dock, runtime autoload, GDExtension binaries, bundled APK |
 | `godot-addon/latency/` | Latency test scene of the addon's dev project |
 | `godot-addon/tests/` | Headless GDScript tests for the addon |
@@ -100,7 +111,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) for commit mess
 
 - The Godot editor owns the session. While it runs it listens on one local port (38500 to 38509), forwards it to every plugged in phone with `adb reverse` and offers the phone app a one-time token with `adb shell am broadcast` (DECISIONS D18).
 - When you press Play on the phone, the editor runs the project's main scene as a normal Godot play. The Handview autoload inside the game process stays inactive unless the editor has set up the link to it, which it does while a phone is connected.
-- The game process captures each rendered frame, scales and converts it, and encodes it to H.264 with NVENC or Media Foundation.
+- The game process captures each rendered frame, scales and converts it, and encodes it to H.264 with NVENC or Media Foundation on Windows, VideoToolbox on macOS.
 - The editor relays the encoded frames to the phone over the USB connection. Both phone sockets connect to the editor, so the same phone session survives any number of Play and Stop cycles.
 - The phone decodes with MediaCodec and draws on a SurfaceView. The editor sends it the game state, so the app shows "Not playing" and the Play button when the game is stopped.
 - Touches on the phone go back to the editor, then to the game, which injects them as `InputEventScreenTouch` and `InputEventScreenDrag`.

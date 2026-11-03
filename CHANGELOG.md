@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Phone keyboard and motion sensors: Key and Sensor messages; the runtime injects key events and sets the accelerometer, gyroscope, gravity and magnetometer.
 - Resolution, FPS and Bitrate settings apply to the stream (StreamPrefs message).
 - Reload on the cast screen (in place of Step) restarts the game with the latest code; the phone shows "Reloading" until the new run starts (Restart command).
+- macOS on Apple Silicon: the GDExtension builds as `handview.macos.template_*.arm64.dylib` (CMake preset `macos-arm64`) and encodes with VideoToolbox. Encoder value 3 (VideoToolbox) is added to `Welcome.encoder`, so the app must be updated together with the addon (DECISIONS D23).
 - `Handview.get_safe_area()` and `safe_area_changed` give a game the phone's cutout and system bar insets while it runs under Handview (DECISIONS D20).
 
 ### Changed

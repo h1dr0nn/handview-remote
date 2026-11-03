@@ -15,8 +15,9 @@ Play the game from your Godot editor on an Android phone. Handview streams the r
 
 ## Requirements
 
-- Windows 10 or 11 (x64) with Godot 4.4 or newer.
-- An NVIDIA GPU, or any PC with a Media Foundation H.264 encoder (most Windows PCs).
+- Godot 4.4 or newer on one of:
+  - Windows 10 or 11 (x64) with an NVIDIA GPU, or any PC with a Media Foundation H.264 encoder (most Windows PCs).
+  - macOS 11 or newer on an Apple Silicon Mac (M1 or later). Encoding uses the Mac's VideoToolbox hardware encoder.
 - An Android 8.0 or newer phone with USB debugging turned on.
 - adb from the Android SDK platform-tools. Handview uses the SDK path in Editor Settings > Export > Android, or adb on `PATH`.
 
@@ -35,7 +36,7 @@ The phone app is installed for you over USB the first time you plug the phone in
 3. Open Handview on the phone. Your project appears under Devices and the app opens the game screen.
 4. Press Play on the phone and play with touch.
 
-Over Wi-Fi: turn on "Allow Wi-Fi" in the Handview dock (Windows may ask to allow Godot through the firewall). Then, on the phone, tap Scan QR and scan the code in the dock, or tap the project under Devices and enter the PIN shown in the dock. The phone and the PC must be on the same network.
+Over Wi-Fi: turn on "Allow Wi-Fi" in the Handview dock (Windows or macOS may ask to allow Godot through the firewall). Then, on the phone, tap Scan QR and scan the code in the dock, or tap the project under Devices and enter the PIN shown in the dock. The phone and the PC must be on the same network.
 
 Buttons on the game screen:
 
@@ -49,7 +50,7 @@ Buttons on the game screen:
 
 Good to know:
 
-- A game started from the phone runs with its window hidden on the PC. A game started from the editor keeps its normal window and also shows on the phone.
+- A game started from the phone runs with its window hidden on the PC. On macOS it also has no Dock icon. A game started from the editor keeps its normal window and also shows on the phone.
 - Several open projects each show up under Devices.
 - The project's main scene must be set.
 
@@ -74,12 +75,13 @@ Games run unchanged without this; only notch-aware layouts need it.
 | The project does not appear on the phone | Check that the dock shows the phone as "Ready", open the app once, then press Refresh in the dock |
 | "The installed Handview app was signed with a different key" | Choose "Uninstall and Install" in the dialog. This removes the old app and its data |
 | Black or frozen video | Update the GPU driver (NVENC needs NVIDIA driver 531 or newer), then leave the game screen and join again |
-| The project does not appear over Wi-Fi | Check that "Allow Wi-Fi" is on, that both devices are on the same network, and that Windows Firewall allows Godot on private networks. You can also type the PC address from the dock |
+| The project does not appear over Wi-Fi | Check that "Allow Wi-Fi" is on, that both devices are on the same network, and that the firewall allows Godot (Windows: private networks; macOS: System Settings > Network > Firewall). You can also type the PC address from the dock |
+| macOS: "No GDExtension library found for current OS and architecture (macos.arm64)" | The addon predates macOS support. Install a release that includes `handview.macos.*.arm64.dylib` |
 | "The phone stopped responding" | Check the cable and avoid USB hubs. The phone joins again when the cable is back |
 
 ## Limitations
 
-- Windows only for now.
+- Windows x64 and Apple Silicon Macs only. Intel Macs and Linux are not supported.
 - One phone plays at a time.
 - The Game workspace's own pause button does not follow Pause from the phone.
 - Projects using the Compatibility renderer or HDR 2D use a slower capture path.
