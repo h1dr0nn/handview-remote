@@ -10,6 +10,7 @@ godot-addon/addons/handview/bin/*
 
 # Bundled APK is copied in at packaging time
 godot-addon/addons/handview/android/*.apk
+godot-addon/addons/handview/android/handview.version
 
 # Godot
 .godot/
