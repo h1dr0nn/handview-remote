@@ -47,6 +47,41 @@ jobs:
           path: godot-addon/addons/handview/bin/*.dll
           if-no-files-found: error
 
+  native-macos:
+    name: Native core + GDExtension (macOS arm64)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      - name: Configure
+        run: cmake --preset macos-arm64 -DGODOTCPP_TARGET=template_debug
+
+      - name: Build
+        run: cmake --build --preset macos-arm64-debug --parallel
+
+      # Hosted macOS runners are VMs and may lack the VideoToolbox hardware
+      # encoder; test_encode then prints SKIP and test_stream skips itself.
+      - name: Native tests (CTest)
+        run: ctest --preset macos-arm64-debug --timeout 300
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gdextension-macos-arm64-debug
+          path: godot-addon/addons/handview/bin/*.dylib
+          if-no-files-found: error
+
   android:
     name: Android app (debug APK)
     runs-on: ubuntu-latest

@@ -159,9 +159,40 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/handview-release.keystore"
 
+  native-release-macos:
+    name: Native GDExtension (Release, macOS arm64)
+    needs: prepare
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      - name: Configure
+        run: cmake --preset macos-arm64 -DGODOTCPP_TARGET=template_release
+
+      - name: Build
+        run: cmake --build --preset macos-arm64-release --parallel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gdextension-macos-arm64-release
+          path: godot-addon/addons/handview/bin/handview.macos.template_release.arm64.dylib
+          if-no-files-found: error
+
   publish:
     name: Package and publish
-    needs: [prepare, native-release, android-release]
+    needs: [prepare, native-release, native-release-macos, android-release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -182,6 +213,11 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
+          name: gdextension-macos-arm64-release
+          path: inputs/dylib
+
+      - uses: actions/download-artifact@v4
+        with:
           name: handview-release-apk
           path: inputs/apk
 
@@ -195,6 +231,7 @@ jobs:
           set -euo pipefail
           python tools/package/package.py \
             --dll inputs/dll/handview.windows.template_release.x86_64.dll \
+            --macos-dylib inputs/dylib/handview.macos.template_release.arm64.dylib \
             --apk inputs/apk/app-release.apk \
             --version "$VERSION" \
             --version-code "$VERSION_CODE" \

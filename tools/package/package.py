@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Assemble the Handview Godot addon release zip.
 
-Builds nothing itself. It takes already built files (release DLL, signed APK)
-and packs them with the addon sources from godot-addon/addons/handview.
+Builds nothing itself. It takes already built files (release DLL, optional
+macOS arm64 dylib, signed APK) and packs them with the addon sources from
+godot-addon/addons/handview.
 
     python tools/package/package.py --dll handview.dll --apk handview.apk \
-        --version 0.1.0 --version-code 1 --out dist
+        --macos-dylib handview.dylib --version 0.1.0 --version-code 1 --out dist
 
 Standard library only. Run `--self-test` to check the zip layout on dummy files.
 """
@@ -26,6 +27,10 @@ DEFAULT_ADDON_DIR = REPO_ROOT / "godot-addon"
 ADDON_PREFIX = "addons/handview"
 DLL_RELEASE_NAME = "handview.windows.template_release.x86_64.dll"
 DLL_DEBUG_NAME = "handview.windows.template_debug.x86_64.dll"
+DYLIB_RELEASE_NAME = "handview.macos.template_release.arm64.dylib"
+DYLIB_DEBUG_NAME = "handview.macos.template_debug.arm64.dylib"
+# 64-bit Mach-O magic as stored by a little-endian (arm64) build.
+MACHO_MAGIC = b"\xcf\xfa\xed\xfe"
 APK_NAME = "handview.apk"
 VERSION_FILE_NAME = "handview.version"
 
@@ -77,6 +82,14 @@ def _check_dll(path: Path, label: str) -> None:
             raise PackageError(f"{label} is not a Windows PE file: {path}")
 
 
+def _check_dylib(path: Path) -> None:
+    if not path.is_file():
+        raise PackageError(f"macOS dylib not found: {path}")
+    with path.open("rb") as handle:
+        if handle.read(4) != MACHO_MAGIC:
+            raise PackageError(f"macOS dylib is not a 64-bit Mach-O file: {path}")
+
+
 def _plugin_cfg_version(plugin_cfg: Path):
     match = re.search(r'^version\s*=\s*"([^"]*)"', plugin_cfg.read_text(encoding="utf-8"), re.M)
     return match.group(1) if match else None
@@ -89,7 +102,7 @@ def _write_entry(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
     archive.writestr(info, data)
 
 
-def build_zip(addon_root, dll, apk, version, version_code, out_dir, debug_dll=None) -> tuple:
+def build_zip(addon_root, dll, apk, version, version_code, out_dir, debug_dll=None, macos_dylib=None) -> tuple:
     """Create the zip and its checksum file. Returns (zip path, checksum path)."""
     addon_root, dll, apk, out_dir = Path(addon_root), Path(dll), Path(apk), Path(out_dir)
     if not SEMVER_RE.match(version):
@@ -100,6 +113,8 @@ def build_zip(addon_root, dll, apk, version, version_code, out_dir, debug_dll=No
     _check_dll(dll, "release DLL")
     if debug_dll is not None:
         _check_dll(Path(debug_dll), "debug DLL")
+    if macos_dylib is not None:
+        _check_dylib(Path(macos_dylib))
     if not apk.is_file():
         raise PackageError(f"APK not found: {apk}")
 
@@ -119,6 +134,9 @@ def build_zip(addon_root, dll, apk, version, version_code, out_dir, debug_dll=No
     # names unless a separate debug DLL is given.
     files[f"{ADDON_PREFIX}/bin/{DLL_RELEASE_NAME}"] = dll
     files[f"{ADDON_PREFIX}/bin/{DLL_DEBUG_NAME}"] = Path(debug_dll) if debug_dll else dll
+    if macos_dylib is not None:
+        files[f"{ADDON_PREFIX}/bin/{DYLIB_RELEASE_NAME}"] = Path(macos_dylib)
+        files[f"{ADDON_PREFIX}/bin/{DYLIB_DEBUG_NAME}"] = Path(macos_dylib)
     files[f"{ADDON_PREFIX}/android/{APK_NAME}"] = apk
     # MIT requires the notice to travel with the code.
     license_file = addon_root.parent / "LICENSE"
@@ -220,6 +238,17 @@ def self_test() -> None:
             check(archive.read("addons/handview/bin/" + DLL_DEBUG_NAME) == b"MZ-debug", "separate debug dll")
             check(archive.read("addons/handview/bin/" + DLL_RELEASE_NAME) == b"MZ-release", "release dll kept")
 
+        # macOS dylib under both names.
+        dylib = root / "release.dylib"
+        dylib.write_bytes(MACHO_MAGIC + b"-release")
+        zip_path3, _ = build_zip(addon_root, release_dll, apk, "1.2.3", 7, root / "out4", macos_dylib=dylib)
+        with zipfile.ZipFile(zip_path3) as archive:
+            check(set(archive.namelist()) == expected | {"addons/handview/bin/" + DYLIB_RELEASE_NAME,
+                                                         "addons/handview/bin/" + DYLIB_DEBUG_NAME},
+                  "layout with --macos-dylib")
+            check(archive.read("addons/handview/bin/" + DYLIB_DEBUG_NAME) == MACHO_MAGIC + b"-release",
+                  "debug name holds the release dylib")
+
         # Bad inputs are rejected and leave no zip behind.
         def rejects(message, **overrides):
             args = dict(addon_root=addon_root, dll=release_dll, apk=apk, version="1.2.3",
@@ -236,6 +265,7 @@ def self_test() -> None:
         rejects("plugin.cfg mismatch", version="1.2.4")
         rejects("missing APK", apk=root / "missing.apk")
         rejects("non-PE dll", dll=apk)
+        rejects("non-Mach-O dylib", macos_dylib=release_dll)
         check(not (root / "out3").exists(), "output written for rejected input")
     finally:
         shutil.rmtree(root, ignore_errors=True)
@@ -250,6 +280,7 @@ def main(argv=None) -> int:
     parser.add_argument("--version-code", type=int, help="Android versionCode, written to handview.version")
     parser.add_argument("--out", help="output directory")
     parser.add_argument("--debug-dll", help="ship this DLL as the template_debug entry instead of the release DLL")
+    parser.add_argument("--macos-dylib", help="release GDExtension for macOS arm64, shipped under both macOS names")
     parser.add_argument("--addon-dir", default=str(DEFAULT_ADDON_DIR),
                         help="Godot project holding addons/handview (default: repo godot-addon)")
     parser.add_argument("--self-test", action="store_true", help="build a zip from dummy files and verify it")
@@ -263,7 +294,7 @@ def main(argv=None) -> int:
         parser.error("missing: " + ", ".join("--" + name.replace("_", "-") for name in missing))
     try:
         zip_path, checksum_path = build_zip(
-            args.addon_dir, args.dll, args.apk, args.version, args.version_code, args.out, args.debug_dll
+            args.addon_dir, args.dll, args.apk, args.version, args.version_code, args.out, args.debug_dll, args.macos_dylib
         )
     except PackageError as error:
         print(f"error: {error}", file=sys.stderr)
