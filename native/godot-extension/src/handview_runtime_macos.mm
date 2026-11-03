@@ -18,6 +18,14 @@ bool macos_set_tool_window(int64_t native_window_handle) {
     window.ignoresMouseEvents = YES;
     window.alphaValue = 0.0;
     window.hasShadow = NO;
+    // Godot stops drawing a window that macOS reports as occluded, and the
+    // editor covers this one. Floating above everything, on every Space, the
+    // (invisible) window never counts as occluded.
+    window.level = NSStatusWindowLevel;
+    window.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                NSWindowCollectionBehaviorStationary |
+                                NSWindowCollectionBehaviorIgnoresCycle |
+                                NSWindowCollectionBehaviorFullScreenAuxiliary;
     return true;
 }
 
