@@ -9,6 +9,11 @@ endif()
 # GODOTCPP_TARGET (template_debug | template_release) is a godot-cpp cache option.
 # godot-cpp headers are not /W4 clean; treat them as system headers.
 set(GODOTCPP_SYSTEM_HEADERS ON CACHE BOOL "" FORCE)
+# godot-cpp passes -fno-exceptions to clang and gcc, but the QR code generator
+# reports oversized input by throwing. MSVC keeps its current setup.
+if(NOT MSVC)
+    set(GODOTCPP_DISABLE_EXCEPTIONS OFF CACHE BOOL "" FORCE)
+endif()
 add_subdirectory("${GODOT_CPP_DIR}" "${CMAKE_BINARY_DIR}/godot-cpp" EXCLUDE_FROM_ALL)
 
 add_library(handview_gdextension SHARED
@@ -26,14 +31,25 @@ target_link_libraries(handview_gdextension PRIVATE handview::core godot::cpp han
 if(MSVC)
     target_compile_options(handview_gdextension PRIVATE /W4 /permissive-)
 endif()
+if(APPLE)
+    # The hidden play window needs AppKit (handview_runtime_macos.mm).
+    enable_language(OBJCXX)
+    target_sources(handview_gdextension PRIVATE src/handview_runtime_macos.mm)
+    target_link_libraries(handview_gdextension PRIVATE "-framework AppKit")
+endif()
 
 set(HANDVIEW_ADDON_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../godot-addon/addons/handview/bin"
     CACHE PATH "Where the built GDExtension library is placed")
 
-# MVP ships Windows x86_64 only. $<1:...> stops multi-config generators from
-# appending a per-config subdirectory.
+# Windows x86_64 and macOS arm64, named like godot-cpp's own builds.
+# $<1:...> stops multi-config generators from appending a per-config subdirectory.
+if(APPLE)
+    set(HANDVIEW_PLATFORM_SUFFIX "macos.${GODOTCPP_TARGET}.arm64")
+else()
+    set(HANDVIEW_PLATFORM_SUFFIX "windows.${GODOTCPP_TARGET}.x86_64")
+endif()
 set_target_properties(handview_gdextension PROPERTIES
-    OUTPUT_NAME "handview.windows.${GODOTCPP_TARGET}.x86_64"
+    OUTPUT_NAME "handview.${HANDVIEW_PLATFORM_SUFFIX}"
     PREFIX ""
     RUNTIME_OUTPUT_DIRECTORY "$<1:${HANDVIEW_ADDON_BIN_DIR}>"
     LIBRARY_OUTPUT_DIRECTORY "$<1:${HANDVIEW_ADDON_BIN_DIR}>"

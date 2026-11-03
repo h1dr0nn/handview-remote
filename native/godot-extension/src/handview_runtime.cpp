@@ -4,7 +4,9 @@
 
 #include <godot_cpp/variant/utility_functions.hpp>
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 #include <array>
 #include <string>
@@ -21,6 +23,10 @@ bool parse_token(const String& hex, std::array<std::uint8_t, 32>& out) {
 }
 
 }  // namespace
+
+#ifdef __APPLE__
+bool macos_set_tool_window(int64_t native_window_handle);  // handview_runtime_macos.mm
+#endif
 
 HandviewRuntime::HandviewRuntime() = default;
 
@@ -140,6 +146,9 @@ Dictionary HandviewRuntime::get_status() const {
 }
 
 bool HandviewRuntime::set_tool_window(int64_t native_window_handle) {
+#ifdef __APPLE__
+    return macos_set_tool_window(native_window_handle);
+#elif defined(_WIN32)
     const auto hwnd = reinterpret_cast<HWND>(static_cast<intptr_t>(native_window_handle));
     if (hwnd == nullptr || !IsWindow(hwnd)) return false;
     LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -149,6 +158,10 @@ bool HandviewRuntime::set_tool_window(int64_t native_window_handle) {
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
     ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     return true;
+#else
+    (void)native_window_handle;
+    return false;
+#endif
 }
 
 }  // namespace handview
