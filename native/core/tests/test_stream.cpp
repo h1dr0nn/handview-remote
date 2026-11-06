@@ -9,6 +9,7 @@
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -188,12 +189,24 @@ void test_now_us_monotonic() {
     CHECK(b > a && b - a >= 4000 && b - a < 1000000);
 }
 
+// probe_backend() only lists backends; a CI runner can list Media Foundation and still fail to open
+// or run it, so skip unless a real encoder opens and encodes a frame of the size pump() sends.
+bool encoder_works(std::string& error) {
+    encode::EncoderConfig config{640, 360, 640, 360, 60, 4000};
+    auto encoder = encode::create_encoder(config, std::nullopt, error);
+    if (!encoder) return false;
+    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(640) * 360 * 4, 128);
+    encode::EncodedFrame out;
+    return encoder->encode(rgba.data(), 640 * 4, 0, true, out, error) && !out.data.empty();
+}
+
 }  // namespace
 
 int main() {
     test_now_us_monotonic();
-    if (!encode::probe_backend()) {
-        std::printf("SKIP stream pipeline: no encoder backend\n");
+    std::string error;
+    if (!encode::probe_backend() || !encoder_works(error)) {
+        std::printf("SKIP stream pipeline: no working encoder backend (%s)\n", error.c_str());
         return test_result("stream");
     }
     test_stream_pipeline();
